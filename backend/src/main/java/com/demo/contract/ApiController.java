@@ -86,7 +86,7 @@ public class ApiController {
          XWPFDocument document = new XWPFDocument(in)) {
       Object rawParagraphs = body.get("paragraphEdits");
       if (rawParagraphs instanceof List<?> edits) {
-        List<XWPFParagraph> paragraphs = document.getParagraphs();
+        List<XWPFParagraph> paragraphs = documentBodyParagraphs(document);
         for (Object item : edits) {
           if (item instanceof Map<?,?> edit && edit.get("index") != null && edit.get("text") != null) {
             int index;
@@ -149,7 +149,7 @@ public class ApiController {
     List<Map<String,Object>> result = new ArrayList<>();
     try (InputStream in = getTemplateStream(id); XWPFDocument document = new XWPFDocument(in)) {
       int index = 0;
-      for (XWPFParagraph paragraph : document.getParagraphs()) {
+      for (XWPFParagraph paragraph : documentBodyParagraphs(document)) {
         String value = paragraphText(paragraph);
         // Only expose editable contract text. Paragraphs containing business
         // placeholders are data-binding locations, not user-editable clauses.
@@ -426,6 +426,31 @@ public class ApiController {
       // Keep placeholder syntax verbatim in the template version.
       setParagraphLines(targets.get(0), editedText);
       for (int i = 1; i < targets.size(); i++) setParagraphLines(targets.get(i), "");
+    }
+  }
+
+  /**
+   * Enumerate editable paragraphs in DOCX body order, including paragraphs inside
+   * tables and nested tables. The same traversal must be used by parsing, saving,
+   * and rendering so paragraph indexes always address the same OOXML content.
+   */
+  private List<XWPFParagraph> documentBodyParagraphs(XWPFDocument document) {
+    List<XWPFParagraph> paragraphs = new ArrayList<>();
+    collectBodyParagraphs(document.getBodyElements(), paragraphs);
+    return paragraphs;
+  }
+
+  private void collectBodyParagraphs(List<IBodyElement> elements, List<XWPFParagraph> paragraphs) {
+    for (IBodyElement element : elements) {
+      if (element instanceof XWPFParagraph paragraph) {
+        paragraphs.add(paragraph);
+      } else if (element instanceof XWPFTable table) {
+        for (XWPFTableRow row : table.getRows()) {
+          for (XWPFTableCell cell : row.getTableCells()) {
+            collectBodyParagraphs(cell.getBodyElements(), paragraphs);
+          }
+        }
+      }
     }
   }
 

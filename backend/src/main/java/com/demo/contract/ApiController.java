@@ -78,19 +78,47 @@ public class ApiController {
     if (name.isBlank()) name = "合同模板";
     String id = UUID.randomUUID().toString();
     Path target = templatesDir.resolve(id + ".docx").normalize();
-    Path tempPdf = previewsDir.resolve(id + ".pdf");
     if (!target.startsWith(templatesDir)) throw new IllegalArgumentException("非法模板路径");
-    try {
-      renderDocument(body, target, tempPdf, id);
+
+    // Saving a template must preserve business-field placeholders. Do not call
+    // renderDocument(), because it replaces placeholders with the current data.
+    try (InputStream in = getTemplateStream(sourceId);
+         XWPFDocument document = new XWPFDocument(in)) {
+      if (!"default".equals(sourceId)) {
+        Object rawParagraphs = body.get("paragraphEdits");
+        if (rawParagraphs instanceof List<?> edits) {
+          List<XWPFParagraph> paragraphs = document.getParagraphs();
+          for (Object item : edits) {
+            if (item instanceof Map<?,?> edit && edit.get("index") != null && edit.get("text") != null) {
+              int index;
+              try { index = Integer.parseInt(String.valueOf(edit.get("index"))); }
+              catch (NumberFormatException ex) { continue; }
+              if (index >= 0 && index < paragraphs.size()) {
+                setParagraphLines(paragraphs.get(index), String.valueOf(edit.get("text")));
+              }
+            }
+          }
+        }
+      } else {
+        Map<String,String> clauseEdits = new LinkedHashMap<>();
+        Object rawClauses = body.get("clauses");
+        if (rawClauses instanceof List<?> list) {
+          for (Object item : list) {
+            if (item instanceof Map<?,?> clause && clause.get("id") != null && clause.get("content") != null) {
+              clauseEdits.put(String.valueOf(clause.get("id")), String.valueOf(clause.get("content")));
+            }
+          }
+        }
+        applyTemplateClauseEdits(document, defaultClauses(), clauseEdits);
+      }
+      try (OutputStream out = Files.newOutputStream(target)) { document.write(out); }
       Files.writeString(templatesDir.resolve(id + ".name"), name);
       return Map.of("id", id, "name", name, "isDefault", false,
-        "sourceTemplateId", sourceId, "message", "模板版本已保存。原模板及其他版本未被覆盖。");
+        "sourceTemplateId", sourceId, "message", "模板版本已保存，业务字段占位符保持不变。原模板及其他版本未被覆盖。");
     } catch (Exception ex) {
       Files.deleteIfExists(target);
-      Files.deleteIfExists(tempPdf);
+      Files.deleteIfExists(templatesDir.resolve(id + ".name"));
       throw ex;
-    } finally {
-      Files.deleteIfExists(tempPdf);
     }
   }
 
@@ -360,6 +388,28 @@ public class ApiController {
       }
       if (targets.isEmpty()) continue;
       setParagraphLines(targets.get(0), replaceTokensInText(edits.get(id), data));
+      for (int i = 1; i < targets.size(); i++) setParagraphLines(targets.get(i), "");
+    }
+  }
+
+  /** Apply clause edits to a saved template without resolving business-field placeholders. */
+  private void applyTemplateClauseEdits(XWPFDocument doc, List<Map<String,Object>> defaults, Map<String,String> edits) {
+    if (edits.isEmpty()) return;
+    Map<String,XWPFParagraph> paragraphsByText = new HashMap<>();
+    for (XWPFParagraph p : doc.getParagraphs()) paragraphsByText.putIfAbsent(paragraphText(p).trim(), p);
+    for (Map<String,Object> clause : defaults) {
+      String id = String.valueOf(clause.get("id"));
+      if (!edits.containsKey(id) || Objects.equals(String.valueOf(clause.get("content")), edits.get(id))) continue;
+      Object rawAnchors = clause.get("anchors");
+      if (!(rawAnchors instanceof List<?> anchors) || anchors.isEmpty()) continue;
+      List<XWPFParagraph> targets = new ArrayList<>();
+      for (Object anchor : anchors) {
+        XWPFParagraph p = paragraphsByText.get(String.valueOf(anchor).trim());
+        if (p != null) targets.add(p);
+      }
+      if (targets.isEmpty()) continue;
+      // Keep placeholder syntax verbatim in the template version.
+      setParagraphLines(targets.get(0), edits.get(id));
       for (int i = 1; i < targets.size(); i++) setParagraphLines(targets.get(i), "");
     }
   }

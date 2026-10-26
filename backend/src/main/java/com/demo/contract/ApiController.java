@@ -203,7 +203,7 @@ public class ApiController {
       runNode.put("italic", run.isItalic());
       runNode.put("underline", run.getUnderline() == UnderlinePatterns.NONE ? "none" : String.valueOf(run.getUnderline()));
       runNode.put("fontFamily", run.getFontFamily() == null ? "" : run.getFontFamily());
-      runNode.put("fontSize", run.getFontSize() == null ? 0 : run.getFontSize());
+      runNode.put("fontSize", run.getFontSize());
       runNode.put("color", run.getColor() == null ? "" : run.getColor());
       runNode.put("businessField", containsBusinessPlaceholder(value));
       runs.add(runNode);
@@ -220,7 +220,7 @@ public class ApiController {
     node.put("spacingBefore", paragraph.getSpacingBefore());
     node.put("spacingAfter", paragraph.getSpacingAfter());
     node.put("keepNext", paragraph.isKeepNext());
-    node.put("pageBreakBefore", paragraph.isPageBreakBefore());
+    node.put("pageBreakBefore", paragraph.getCTP().getPPr() != null && paragraph.getCTP().getPPr().isSetPageBreakBefore());
     node.put("editable", !text.isBlank() && !containsBusinessPlaceholder(text));
     node.put("runs", runs);
     return node;

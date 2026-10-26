@@ -144,6 +144,122 @@ public class ApiController {
   }
 
 
+  /**
+   * Expose the actual DOCX body hierarchy instead of flattening the file into a
+   * paragraph list. Nodes are emitted in document order and retain table/row/cell
+   * boundaries, paragraph styles, run formatting, and protected business fields.
+   */
+  @GetMapping("/templates/{id}/structure")
+  public Map<String,Object> templateStructure(@PathVariable String id) throws IOException {
+    try (InputStream in = getTemplateStream(id); XWPFDocument document = new XWPFDocument(in)) {
+      List<Map<String,Object>> children = structureElements(document.getBodyElements());
+      return Map.of(
+        "templateId", id,
+        "type", "document",
+        "children", children,
+        "metadata", Map.of("paragraphCount", countStructureNodes(children, "paragraph"),
+          "tableCount", countStructureNodes(children, "table"))
+      );
+    }
+  }
+
+  private List<Map<String,Object>> structureElements(List<IBodyElement> elements) {
+    List<Map<String,Object>> result = new ArrayList<>();
+    for (IBodyElement element : elements) {
+      if (element instanceof XWPFParagraph paragraph) {
+        result.add(structureParagraph(paragraph));
+      } else if (element instanceof XWPFTable table) {
+        List<Map<String,Object>> rows = new ArrayList<>();
+        for (XWPFTableRow row : table.getRows()) {
+          List<Map<String,Object>> cells = new ArrayList<>();
+          for (XWPFTableCell cell : row.getTableCells()) {
+            cells.add(Map.of("type", "cell", "children", structureElements(cell.getBodyElements()),
+              "gridSpan", cell.getCTTc().getTcPr() != null && cell.getCTTc().getTcPr().isSetGridSpan()
+                ? cell.getCTTc().getTcPr().getGridSpan().getVal().intValue() : 1,
+              "verticalMerge", cell.getCTTc().getTcPr() != null && cell.getCTTc().getTcPr().isSetVMerge()
+                ? String.valueOf(cell.getCTTc().getTcPr().getVMerge().getVal()) : "none"));
+          }
+          rows.add(Map.of("type", "row", "cells", cells));
+        }
+        Map<String,Object> node = new LinkedHashMap<>();
+        node.put("type", "table");
+        node.put("styleId", table.getStyleID() == null ? "" : table.getStyleID());
+        node.put("rows", rows);
+        result.add(node);
+      }
+    }
+    return result;
+  }
+
+  private Map<String,Object> structureParagraph(XWPFParagraph paragraph) {
+    List<Map<String,Object>> runs = new ArrayList<>();
+    StringBuilder fullText = new StringBuilder();
+    for (XWPFRun run : paragraph.getRuns()) {
+      String value = run.text() == null ? "" : run.text();
+      fullText.append(value);
+      Map<String,Object> runNode = new LinkedHashMap<>();
+      runNode.put("text", value);
+      runNode.put("bold", run.isBold());
+      runNode.put("italic", run.isItalic());
+      runNode.put("underline", run.getUnderline() == UnderlinePatterns.NONE ? "none" : String.valueOf(run.getUnderline()));
+      runNode.put("fontFamily", run.getFontFamily() == null ? "" : run.getFontFamily());
+      runNode.put("fontSize", run.getFontSize() == null ? 0 : run.getFontSize());
+      runNode.put("color", run.getColor() == null ? "" : run.getColor());
+      runNode.put("businessField", containsBusinessPlaceholder(value));
+      runs.add(runNode);
+    }
+    String text = fullText.toString();
+    Map<String,Object> node = new LinkedHashMap<>();
+    node.put("type", "paragraph");
+    node.put("text", text);
+    node.put("styleId", paragraph.getStyle() == null ? "" : paragraph.getStyle());
+    node.put("alignment", paragraph.getAlignment() == null ? "LEFT" : paragraph.getAlignment().name());
+    node.put("indentationLeft", paragraph.getIndentationLeft());
+    node.put("indentationRight", paragraph.getIndentationRight());
+    node.put("indentationFirstLine", paragraph.getIndentationFirstLine());
+    node.put("spacingBefore", paragraph.getSpacingBefore());
+    node.put("spacingAfter", paragraph.getSpacingAfter());
+    node.put("keepNext", paragraph.isKeepNext());
+    node.put("pageBreakBefore", paragraph.isPageBreakBefore());
+    node.put("editable", !text.isBlank() && !containsBusinessPlaceholder(text));
+    node.put("runs", runs);
+    return node;
+  }
+
+  private int countStructureNodes(List<Map<String,Object>> nodes, String type) {
+    int count = 0;
+    for (Map<String,Object> node : nodes) {
+      if (type.equals(node.get("type"))) count++;
+      Object children = node.get("children");
+      if (children instanceof List<?> list) {
+        List<Map<String,Object>> nested = new ArrayList<>();
+        for (Object item : list) if (item instanceof Map<?,?> map) {
+          Map<String,Object> child = new LinkedHashMap<>();
+          map.forEach((key,value) -> child.put(String.valueOf(key), value));
+          nested.add(child);
+        }
+        count += countStructureNodes(nested, type);
+      }
+      Object rows = node.get("rows");
+      if (rows instanceof List<?> rowList) for (Object row : rowList) if (row instanceof Map<?,?> rowMap) {
+        Object cells = rowMap.get("cells");
+        if (cells instanceof List<?> cellList) for (Object cell : cellList) if (cell instanceof Map<?,?> cellMap) {
+          Object cellChildren = cellMap.get("children");
+          if (cellChildren instanceof List<?> childList) {
+            List<Map<String,Object>> nested = new ArrayList<>();
+            for (Object item : childList) if (item instanceof Map<?,?> map) {
+              Map<String,Object> child = new LinkedHashMap<>();
+              map.forEach((key,value) -> child.put(String.valueOf(key), value));
+              nested.add(child);
+            }
+            count += countStructureNodes(nested, type);
+          }
+        }
+      }
+    }
+    return count;
+  }
+
   @GetMapping("/templates/{id}/paragraphs")
   public List<Map<String,Object>> templateParagraphs(@PathVariable String id) throws IOException {
     List<Map<String,Object>> result = new ArrayList<>();

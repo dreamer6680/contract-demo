@@ -216,16 +216,27 @@ public class ApiController {
     return result.toString();
   }
 
+  /**
+   * Replace text while retaining the anchor paragraph's paragraph properties and
+   * the first run's character formatting. Reuse one run for line breaks so the
+   * replacement does not discard the original font/size/bold settings.
+   */
   private void setParagraphLines(XWPFParagraph paragraph, String value) {
     List<XWPFRun> runs = paragraph.getRuns();
-    for (int i = runs.size() - 1; i >= 0; i--) paragraph.removeRun(i);
+    XWPFRun run;
+    if (runs == null || runs.isEmpty()) {
+      run = paragraph.createRun();
+    } else {
+      run = runs.get(0);
+      // Keep the first run (and its rPr); remove only additional runs.
+      for (int i = runs.size() - 1; i >= 1; i--) paragraph.removeRun(i);
+    }
+
     String[] lines = (value == null ? "" : value).split("\\R", -1);
-    XWPFRun run = paragraph.createRun();
-    if (lines.length > 0) run.setText(lines[0]);
+    run.setText(lines.length > 0 ? lines[0] : "", 0);
     for (int i = 1; i < lines.length; i++) {
       run.addBreak();
-      XWPFRun next = paragraph.createRun();
-      next.setText(lines[i]);
+      run.setText(lines[i]);
     }
   }
 

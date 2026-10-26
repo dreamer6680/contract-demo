@@ -20,3 +20,18 @@
 
 /* Editing workspace: keep the real PDF pagination visible beside the clause controls. */
 .editorPreviewLayout{display:grid;grid-template-columns:minmax(320px,0.9fr) minmax(420px,1.1fr);align-items:start;gap:16px;margin-top:18px}.editorPreviewLayout .clauseEditorList{margin:0;max-height:calc(100vh - 190px);overflow:auto;position:sticky;top:12px}.editorPreviewLayout .pdfPreviewWorkspace{margin:0;min-width:0}.editorPreviewLayout .pdfPreviewFrame{height:calc(100vh - 235px);min-height:680px}.editorPreviewLayout .editorListTitle{position:sticky;top:-16px;background:white;padding:8px 0;z-index:1}.editorPreviewLayout .clauseEditItem textarea{font-size:12px;min-height:78px}@media(max-width:1100px){.editorPreviewLayout{grid-template-columns:1fr}.editorPreviewLayout .clauseEditorList{position:static;max-height:none}.editorPreviewLayout .pdfPreviewFrame{height:75vh;min-height:600px}}
+
+
+.structureSummary{font-size:11px;color:#718096;background:#f7f9fc;border:1px solid #e5eaf1;border-radius:6px;padding:9px 11px;margin-bottom:10px}
+.structureTree{max-height:360px;overflow:auto;border:1px solid #e4e9f0;border-radius:7px;background:#fbfcfe;padding:8px;margin-bottom:16px}
+.structureParagraph{display:flex;align-items:flex-start;gap:9px;padding:7px 6px;border-bottom:1px dashed #e9edf2;font-size:11px;line-height:1.7;color:#39485d;white-space:pre-wrap;overflow-wrap:anywhere}
+.structureParagraph:last-child{border-bottom:0}
+.structureKind{flex-shrink:0;color:#8592a4;font-size:9px;background:#f0f3f7;border-radius:4px;padding:2px 5px}
+.structureParagraph em{margin-left:auto;flex-shrink:0;font-style:normal;font-size:9px;color:#9a6b35;background:#fff5e7;padding:2px 5px;border-radius:4px}
+.structureTable{margin:8px 0 12px;border:1px solid #dfe5ed;border-radius:6px;overflow:auto;background:#fff}
+.structureTable>.structureKind{display:block;border-radius:0;padding:7px 9px}
+.structureTable table{border-collapse:collapse;width:100%;font-size:11px}
+.structureTable td{vertical-align:top;min-width:90px;border:1px solid #e5e9ef;padding:6px}
+.structureTable .structureParagraph{display:block;border:0;padding:3px 0}
+.structureTable .structureParagraph .structureKind{display:none}
+.structureEditTitle{font-size:12px;font-weight:700;color:#35445a;margin:12px 0 4px}

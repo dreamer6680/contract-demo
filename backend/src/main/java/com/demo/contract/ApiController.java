@@ -61,7 +61,10 @@ public class ApiController {
           String id = filename.substring(0, filename.length() - 5);
           String displayName = id;
           Path nameFile = templatesDir.resolve(id + ".name");
-          if (Files.isRegularFile(nameFile)) displayName = Files.readString(nameFile).trim();
+          if (Files.isRegularFile(nameFile)) {
+            try { displayName = Files.readString(nameFile).trim(); }
+            catch (IOException ignored) { /* Fall back to the template file name. */ }
+          }
           result.add(Map.of("id", id, "name", displayName.isEmpty() ? id : displayName, "isDefault", false));
         });
     }

@@ -122,9 +122,12 @@ public class OnlyOfficeController {
     if (!saved.startsWith(storage.resolve("onlyoffice"))) throw new IllegalArgumentException("非法模板路径");
     if (!Files.isRegularFile(saved)) {
       placeholderProtection.createProtectedCopy(baseline, saved);
-    } else if (!placeholderProtection.hasProtectedControls(saved)) {
+    } else {
+      placeholderProtection.assertIntegrity(baseline, saved);
+      if (!placeholderProtection.hasProtectedControls(saved)) {
       // Migrate POC saves created before placeholder locking was added.
-      placeholderProtection.createProtectedCopy(saved, saved);
+        placeholderProtection.createProtectedCopy(saved, saved);
+      }
     }
     return saved;
   }

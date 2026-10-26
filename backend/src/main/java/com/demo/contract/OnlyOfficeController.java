@@ -43,7 +43,7 @@ public class OnlyOfficeController {
 
   @GetMapping("/config/{templateId}")
   public Map<String, Object> config(@PathVariable String templateId) throws IOException {
-    Path source = resolveTemplate(templateId);
+    Path source = editableDocument(templateId);
     if (!Files.isRegularFile(source)) throw new IllegalArgumentException("模板不存在：" + templateId);
     String key = templateId.replaceAll("[^A-Za-z0-9_-]", "_") + "-" + Files.getLastModifiedTime(source).toMillis();
     Map<String, Object> document = new LinkedHashMap<>();
@@ -71,7 +71,7 @@ public class OnlyOfficeController {
 
   @GetMapping("/document/{templateId}")
   public ResponseEntity<FileSystemResource> document(@PathVariable String templateId) throws IOException {
-    Path path = resolveTemplate(templateId);
+    Path path = editableDocument(templateId);
     if (!Files.isRegularFile(path)) return ResponseEntity.notFound().build();
     return ResponseEntity.ok()
         .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.wordprocessingml.document"))
@@ -96,7 +96,7 @@ public class OnlyOfficeController {
     return Map.of("error", 0);
   }
 
-  private Path resolveTemplate(String id) {
+  private Path editableDocument(String id) {\n    Path saved = storage.resolve("onlyoffice").resolve(safeId(id) + ".docx").normalize();\n    if (!saved.startsWith(storage.resolve("onlyoffice"))) throw new IllegalArgumentException("非法模板路径");\n    if (Files.isRegularFile(saved)) return saved;\n    return resolveTemplate(id);\n  }\n\n  private Path resolveTemplate(String id) {
     if ("default".equals(id)) return defaultTemplate;
     String safe = safeId(id);
     if (!safe.equals(id)) throw new IllegalArgumentException("非法模板 ID");

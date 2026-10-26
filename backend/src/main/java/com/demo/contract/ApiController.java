@@ -184,7 +184,7 @@ public class ApiController {
   private void applyClauseEdits(XWPFDocument doc, List<Map<String,Object>> defaults, Map<String,String> edits, Map<String,String> data) {
     if (edits.isEmpty()) return;
     Map<String,XWPFParagraph> paragraphsByText = new HashMap<>();
-    for (XWPFParagraph p : doc.getParagraphs()) paragraphsByText.putIfAbsent(paragraphText(p), p);
+    for (XWPFParagraph p : doc.getParagraphs()) paragraphsByText.putIfAbsent(paragraphText(p).trim(), p);
     for (Map<String,Object> clause : defaults) {
       String id = String.valueOf(clause.get("id"));
       if (!edits.containsKey(id)) continue;
@@ -193,7 +193,7 @@ public class ApiController {
       if (!(rawAnchors instanceof List<?> anchors) || anchors.isEmpty()) continue;
       List<XWPFParagraph> targets = new ArrayList<>();
       for (Object anchor : anchors) {
-        XWPFParagraph p = paragraphsByText.get(String.valueOf(anchor));
+        XWPFParagraph p = paragraphsByText.get(String.valueOf(anchor).trim());
         if (p != null) targets.add(p);
       }
       if (targets.isEmpty()) continue;

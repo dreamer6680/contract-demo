@@ -154,7 +154,7 @@ public final class PlaceholderProtectionService {
     tag.setAttributeNS(W, "w:val", "protected:" + token);
     Element lock = doc.createElementNS(W, "w:lock");
     lock.setAttributeNS(W, "w:val", "sdtContentLocked");
-    pr.appendChild(alias); pr.appendChild(tag); pr.appendChild(lock);
+    pr.appendChild(alias); pr.appendChild(lock); pr.appendChild(tag);
     Element content = doc.createElementNS(W, "w:sdtContent");
     content.appendChild(makeRun(doc, originalRun, token));
     sdt.appendChild(pr); sdt.appendChild(content);

@@ -46,7 +46,7 @@ export default function OnlyOfficePoc({ onBack }: { onBack: () => void }) {
         if (cancelled) return
         if (!window.DocsAPI) throw new Error('ONLYOFFICE Docs API 未初始化')
         editorRef.current = new window.DocsAPI.DocEditor('onlyoffice-editor', result.config)
-        setStatus('编辑器已初始化。当前为基础接入验证，尚未启用占位符锁定。')
+        setStatus('编辑器已初始化。占位符锁定与保存完整性校验已接入，请按测试用例验证。')
       } catch (e) {
         if (!cancelled) {
           setError(e instanceof Error ? e.message : String(e))
@@ -68,8 +68,8 @@ export default function OnlyOfficePoc({ onBack }: { onBack: () => void }) {
       <button className="secondaryBtn" onClick={onBack}><ArrowLeft size={15} />返回合同工作台</button>
       <div><b>ONLYOFFICE 原生 DOCX 编辑验证</b><span>{status}</span></div>
     </header>
-    <div className="onlyOfficePocNotice"><ShieldAlert size={17} /><span>这是开发验证页。当前接入用于验证原生 DOCX 编辑和保存链路；占位符内容锁定、保存后完整性校验尚未完成，暂不要用此页面编辑正式合同模板。</span></div>
-    {error && <div className="onlyOfficePocError"><b>启动失败</b><span>{error}</span><small>请先运行：<code>docker compose --profile onlyoffice up -d onlyoffice</code>，并确认浏览器可以访问 http://localhost:8081/healthcheck。</small></div>}
+    <div className="onlyOfficePocNotice"><ShieldAlert size={17} /><span>这是开发验证页。业务占位符会转换为锁定的 Word 内容控件，保存时会校验占位符名称和数量；仍需完成实际编辑、保存、重新打开的回归测试，暂不要用于正式合同。</span></div>
+    {error && <div className="onlyOfficePocError"><b>启动失败</b><span>{error}</span><small>请先运行：<code>docker compose --profile onlyoffice up -d onlyoffice</code>，并确认浏览器可以访问 Document Server 的 /healthcheck 地址。</small></div>}
     <div className="onlyOfficePocEditor"><div id="onlyoffice-editor" /></div>
   </div>
 }

@@ -1,0 +1,11 @@
+CREATE TABLE IF NOT EXISTS contract_record (
+  id BIGINT PRIMARY KEY AUTO_INCREMENT,
+  contract_no VARCHAR(80) NOT NULL,
+  seller_name VARCHAR(255),
+  buyer_name VARCHAR(255),
+  total_amount DECIMAL(18,2),
+  status VARCHAR(32) NOT NULL DEFAULT 'GENERATED',
+  docx_path VARCHAR(1000),
+  pdf_path VARCHAR(1000),
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

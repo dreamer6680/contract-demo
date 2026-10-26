@@ -47,3 +47,7 @@ docker compose down
 ## 主要技术
 
 React + TypeScript / Spring Boot 3.4 / Apache POI / LibreOffice headless / MySQL 8.4。
+
+## ONLYOFFICE 占位符锁定验证（开发分支）
+
+`dev` 分支新增了可选的 ONLYOFFICE Docs 服务配置，默认 `docker compose up` 不会启动它。需要验证时，先设置 `ONLYOFFICE_JWT_SECRET`，再执行 `docker compose --profile onlyoffice up -d onlyoffice`。详细步骤、验收用例和未完成事项见 [`docs/onlyoffice-placeholder-poc.md`](docs/onlyoffice-placeholder-poc.md)。

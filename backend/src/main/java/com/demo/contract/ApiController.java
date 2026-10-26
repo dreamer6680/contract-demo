@@ -144,6 +144,15 @@ public class ApiController {
   }
 
 
+  /** Return the original WordprocessingML for visual inspection in the frontend. */
+  @GetMapping("/templates/{id}/xml")
+  public Map<String,Object> templateXml(@PathVariable String id) throws IOException {
+    try (InputStream in = getTemplateStream(id); XWPFDocument document = new XWPFDocument(in)) {
+      String xml = document.getDocument().xmlText(new org.apache.xmlbeans.XmlOptions().setSavePrettyPrint());
+      return Map.of("templateId", id, "part", "word/document.xml", "xml", xml);
+    }
+  }
+
   /**
    * Expose the actual DOCX body hierarchy instead of flattening the file into a
    * paragraph list. Nodes are emitted in document order and retain table/row/cell

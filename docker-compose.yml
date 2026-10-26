@@ -1,0 +1,40 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: contract-demo-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: contract_demo
+      MYSQL_USER: contract
+      MYSQL_PASSWORD: contractpass
+    ports: ["3307:3306"]
+    volumes: [mysql_data:/var/lib/mysql]
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-prootpass"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  backend:
+    build: ./backend
+    container_name: contract-demo-backend
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/contract_demo?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+      SPRING_DATASOURCE_USERNAME: contract
+      SPRING_DATASOURCE_PASSWORD: contractpass
+      APP_STORAGE_DIR: /app/storage
+    ports: ["8080:8080"]
+    volumes:
+      - ./storage:/app/storage
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    container_name: contract-demo-frontend
+    ports: ["5173:80"]
+    depends_on: [backend]
+
+volumes:
+  mysql_data:

@@ -52,8 +52,7 @@ export default function App(){
     </div>}
    </div> : null
    return <div className={['simPdfParagraph',editable?'editable':'protected',node.styleId||''].join(' ')} style={paragraphStyle} key={'paper-p-'+index}>
-    {editable?<div className="simPdfEditableText" role="textbox" aria-label={'编辑合同段落 '+(index+1)} aria-multiline="true" contentEditable suppressContentEditableWarning onBlur={e=>updateTemplateParagraph(index,e.currentTarget.innerText.replace(/\
-$/,''))}>{editable.text===node.text?richRuns:editable.text||' '}</div>:<div className="simPdfText">{richRuns.length?richRuns:(text||' ')}</div>}
+     {editable?<div className="simPdfEditableText" role="textbox" aria-label={'编辑合同段落 '+(index+1)} aria-multiline="true" contentEditable suppressContentEditableWarning onBlur={e=>updateTemplateParagraph(index,e.currentTarget.innerText.replace(/\n$/,''))}>{editable.text===node.text?richRuns:editable.text||' '}</div>:<div className="simPdfText">{richRuns.length?richRuns:(text||' ')}</div>}
     {node.editable===false&&node.text?.trim()&&<span className="simPdfLock">业务字段 / 受保护</span>}
    </div>
   }
@@ -61,8 +60,7 @@ $/,''))}>{editable.text===node.text?richRuns:editable.text||' '}</div>:<div clas
   return <div key={'paper-n-'+i}>{renderPaperNodes(node.children||node.cells||[])}</div>
  })
  const addClauseLine=(id:string)=>setClauses(old=>old.map(c=>c.id===id?{...c,content:(c.content.trimEnd()?c.content.trimEnd()+'
-':'')+'新增条款：请填写条款内容。'}:c))
- const resetClauses=()=>{setClauses(defaultClauses.map(c=>({...c})));setNotice('本次编辑已恢复为默认条款；不会修改公共模板。');setError(false)}
+  const addClauseLine=(id:string)=>setClauses(old=>old.map(c=>c.id===id?{...c,content:(c.content.trimEnd()?c.content.trimEnd()+'\n':'')+'新增条款：请填写条款内容。'}:c))
  const rendered=(text:string)=>text.replace(/\{<\$\.([A-Za-z0-9_.]+)>}/g,(_,key:string)=>data[key]??'')
  const payload=()=>JSON.stringify({templateId,data,clauses:clauses.map(({id,content})=>({id,content})),paragraphEdits:templateParagraphs.map(({index,text})=>({index,text})),newSections}); const generate=async()=>{setBusy(true);setNotice('');try{const r=await api('/documents',{method:'POST',body:payload()});setNotice(r.message);setError(false);const d=await api('/documents');setDocs(d);window.open(r.downloadUrl,'_blank','noopener,noreferrer')}catch(e:any){setError(true);setNotice(e.message)}finally{setBusy(false)}}; const updateTemplateParagraph=(index:number,text:string)=>setTemplateParagraphs(old=>old.map(p=>p.index===index?{...p,text}:p)); const updatePreview=async()=>{setPreviewBusy(true);setNotice('');try{const r=await api('/preview',{method:'POST',body:payload()});setPreviewUrl(r.url+'?v='+Date.now());setNotice(r.message);setError(false)}catch(e:any){setError(true);setNotice(e.message)}finally{setPreviewBusy(false)}}; const saveTemplateVersion=async()=>{setSaveBusy(true);setNotice('');try{const r=await api('/templates/save',{method:'POST',body:JSON.stringify({templateId,name:templateName,data,clauses:clauses.map(({id,content})=>({id,content})),paragraphEdits:templateParagraphs.map(({index,text})=>({index,text})),newSections})});const list=await api('/templates');setTemplates(list);setTemplateId(r.id);setPreviewUrl('');setNotice(r.message);setError(false)}catch(e:any){setError(true);setNotice(e.message)}finally{setSaveBusy(false)}}
  if(onlyOfficeMode) return <OnlyOfficePoc onBack={()=>setOnlyOfficeMode(false)} />

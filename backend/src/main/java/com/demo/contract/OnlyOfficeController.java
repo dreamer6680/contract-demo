@@ -79,7 +79,11 @@ public class OnlyOfficeController {
   }
 
   @PostMapping("/callback/{templateId}")
-  public Map<String, Object> callback(@PathVariable String templateId, @RequestHeader(value = "Authorization", required = false) String authorization, @RequestBody Map<String, Object> body) throws IOException {\n    // Require a Document Server-signed callback token; never trust arbitrary public POSTs.\n    String callbackToken = authorization != null && authorization.startsWith("Bearer ")\n        ? authorization.substring(7) : (body.get("token") instanceof String token ? token : null);\n    if (!validToken(callbackToken)) return Map.of("error", 1);
+  public Map<String, Object> callback(@PathVariable String templateId, @RequestHeader(value = "Authorization", required = false) String authorization, @RequestBody Map<String, Object> body) throws IOException {
+    // Require a Document Server-signed callback token; never trust arbitrary public POSTs.
+    String callbackToken = authorization != null && authorization.startsWith("Bearer ")
+        ? authorization.substring(7) : (body.get("token") instanceof String token ? token : null);
+    if (!validToken(callbackToken)) return Map.of("error", 1);
     Object statusValue = body.get("status");
     int status = statusValue instanceof Number n ? n.intValue() : -1;
     // ONLYOFFICE statuses 2 (ready for saving) and 6 (force-save result) carry a document URL.
@@ -96,7 +100,14 @@ public class OnlyOfficeController {
     return Map.of("error", 0);
   }
 
-  private Path editableDocument(String id) {\n    Path saved = storage.resolve("onlyoffice").resolve(safeId(id) + ".docx").normalize();\n    if (!saved.startsWith(storage.resolve("onlyoffice"))) throw new IllegalArgumentException("非法模板路径");\n    if (Files.isRegularFile(saved)) return saved;\n    return resolveTemplate(id);\n  }\n\n  private Path resolveTemplate(String id) {
+  private Path editableDocument(String id) {
+    Path saved = storage.resolve("onlyoffice").resolve(safeId(id) + ".docx").normalize();
+    if (!saved.startsWith(storage.resolve("onlyoffice"))) throw new IllegalArgumentException("非法模板路径");
+    if (Files.isRegularFile(saved)) return saved;
+    return resolveTemplate(id);
+  }
+
+  private Path resolveTemplate(String id) {
     if ("default".equals(id)) return defaultTemplate;
     String safe = safeId(id);
     if (!safe.equals(id)) throw new IllegalArgumentException("非法模板 ID");
@@ -110,7 +121,13 @@ public class OnlyOfficeController {
     return id;
   }
 
-  private boolean validToken(String token) {\n    if (token == null || token.isBlank()) return false;\n    try { JWT.require(Algorithm.HMAC256(jwtSecret)).build().verify(token); return true; }\n    catch (Exception ignored) { return false; }\n  }\n\n  private String sign(Map<String, Object> payload) {
+  private boolean validToken(String token) {
+    if (token == null || token.isBlank()) return false;
+    try { JWT.require(Algorithm.HMAC256(jwtSecret)).build().verify(token); return true; }
+    catch (Exception ignored) { return false; }
+  }
+
+  private String sign(Map<String, Object> payload) {
     return JWT.create().withIssuedAt(Date.from(Instant.now()))
         .withExpiresAt(Date.from(Instant.now().plusSeconds(3600)))
         .withPayload(payload)

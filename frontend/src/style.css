@@ -59,3 +59,6 @@
 .simPdfParagraph.Heading1,.simPdfParagraph.heading1{font-size:16pt;font-weight:700;margin:18pt 0 9pt}
 .simPdfParagraph.Heading2,.simPdfParagraph.heading2{font-size:14pt;font-weight:700;margin:14pt 0 7pt}
 .simPdfParagraph.Heading3,.simPdfParagraph.heading3{font-size:12pt;font-weight:700;margin:10pt 0 5pt}
+
+
+.xmlToggleBtn{margin-left:10px;border:1px solid #cbd6e5;background:#fff;color:#385b93;border-radius:6px;padding:5px 9px;font:inherit;font-size:10px;cursor:pointer}.docXmlPanel{margin:0 18px 18px;border:1px solid #d9e1ec;border-radius:8px;background:#fff;overflow:hidden}.docXmlHeader{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-bottom:1px solid #e8edf3;background:#f8fafc}.docXmlHeader>div{display:flex;flex-direction:column;gap:4px;min-width:0}.docXmlHeader b{font-size:12px;color:#334155}.docXmlHeader span{font-size:10px;color:#8491a3}.docXmlCode{margin:0;padding:16px;max-height:520px;overflow:auto;background:#101827;color:#d9e4f5;font:11px/1.65 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;white-space:pre;tab-size:2}.docXmlPanel .paragraphLoading{padding:12px}@media(max-width:680px){.docXmlHeader{align-items:flex-start;flex-direction:column}.xmlToggleBtn{margin-left:4px}}

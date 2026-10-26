@@ -432,7 +432,11 @@ public class ApiController {
     try (InputStream in = getTemplateStream(templateId); XWPFDocument document = new XWPFDocument(in)) {
       Object rawParagraphs = body.get("paragraphEdits");
       if (rawParagraphs instanceof List<?> edits) {
-        List<XWPFParagraph> paragraphs = document.getParagraphs();
+        // The frontend indexes paragraphs recursively in DOCX body order,
+        // including paragraphs inside tables and nested tables. Use the same
+        // traversal here; document.getParagraphs() only returns top-level
+        // paragraphs and can otherwise apply edits to the wrong content.
+        List<XWPFParagraph> paragraphs = documentBodyParagraphs(document);
         for (Object item : edits) if (item instanceof Map<?,?> edit && edit.get("index") != null && edit.get("text") != null) {
           int index;
           try { index = Integer.parseInt(String.valueOf(edit.get("index"))); } catch (NumberFormatException ex) { continue; }

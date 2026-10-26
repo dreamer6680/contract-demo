@@ -78,6 +78,7 @@ public class ApiController {
     if (!target.startsWith(templatesDir)) throw new IllegalArgumentException("非法文件名");
     try (InputStream in = file.getInputStream()) { Files.copy(in, target); }
     String name = original.replace('/', '_').replace('\\', '_').replaceAll("(?i)\\.docx$", "");
+    Files.writeString(templatesDir.resolve(id + ".name"), name);
     return Map.of("id",id,"name",name,"isDefault",false,"message","新模板已保存，可在模板列表中选择；公共模板未被修改。");
   }
 

@@ -449,7 +449,7 @@ public class ApiController {
   }
 
   private boolean containsBusinessPlaceholder(String text) {
-    return Pattern.compile("\\\\{<\\\\$\\\\.[A-Za-z0-9_.]+>}").matcher(text == null ? "" : text).find();
+    return Pattern.compile("\\{<\\$\\.[A-Za-z0-9_.]+>}").matcher(text == null ? "" : text).find();
   }
 
   /**

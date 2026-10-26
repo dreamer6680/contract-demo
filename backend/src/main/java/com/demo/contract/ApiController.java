@@ -59,7 +59,10 @@ public class ApiController {
         .forEach(p -> {
           String filename = p.getFileName().toString();
           String id = filename.substring(0, filename.length() - 5);
-          result.add(Map.of("id", id, "name", id, "isDefault", false));
+          String displayName = id;
+          Path nameFile = templatesDir.resolve(id + ".name");
+          if (Files.isRegularFile(nameFile)) displayName = Files.readString(nameFile).trim();
+          result.add(Map.of("id", id, "name", displayName.isEmpty() ? id : displayName, "isDefault", false));
         });
     }
     return result;

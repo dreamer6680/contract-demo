@@ -28,9 +28,9 @@ public class OnlyOfficeController {
 
   public OnlyOfficeController(
       @Value("${app.storage-dir:/app/storage}") String storageDir,
-      @Value("${onlyoffice.document-server-url:http://localhost:8081}") String documentServerUrl,
-      @Value("${onlyoffice.document-url-base:http://host.docker.internal:8080}") String documentUrlBase,
-      @Value("${onlyoffice.callback-url-base:http://backend:8080}") String callbackUrlBase,
+      @Value("${ONLYOFFICE_DOCUMENT_SERVER_URL:http://localhost:8081}") String documentServerUrl,
+      @Value("${ONLYOFFICE_DOCUMENT_URL_BASE:http://host.docker.internal:8080}") String documentUrlBase,
+      @Value("${ONLYOFFICE_CALLBACK_URL_BASE:http://backend:8080}") String callbackUrlBase,
       @Value("${ONLYOFFICE_JWT_SECRET:local-onlyoffice-dev-secret-change-me}") String jwtSecret) throws IOException {
     this.storage = Paths.get(storageDir).toAbsolutePath().normalize();
     this.templatesDir = this.storage.resolve("templates");

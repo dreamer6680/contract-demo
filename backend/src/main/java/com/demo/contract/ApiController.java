@@ -94,7 +94,18 @@ public class ApiController {
               try { index = Integer.parseInt(String.valueOf(edit.get("index"))); }
               catch (NumberFormatException ex) { continue; }
               if (index >= 0 && index < paragraphs.size()) {
-                setParagraphLines(paragraphs.get(index), String.valueOf(edit.get("text")));
+                XWPFParagraph paragraph = paragraphs.get(index);
+                String originalText = paragraphText(paragraph);
+                String editedText = String.valueOf(edit.get("text"));
+                // The UI sends every paragraph, not only changed ones. Do not rewrite
+                // unchanged paragraphs: doing so flattens runs and can destroy DOCX
+                // formatting or field/token boundaries.
+                if (Objects.equals(originalText, editedText)) continue;
+                // A saved template must retain its original business placeholders.
+                // If an edit accidentally replaces one with a displayed business value,
+                // reject that paragraph edit rather than persisting the value.
+                if (!containsAllPlaceholders(originalText, editedText)) continue;
+                setParagraphLines(paragraph, editedText);
               }
             }
           }
@@ -408,8 +419,15 @@ public class ApiController {
         if (p != null) targets.add(p);
       }
       if (targets.isEmpty()) continue;
+      // Keep every original business-field placeholder when saving a template.
+      // If an edit drops a token, skip the whole clause edit instead of saving
+      // a currently displayed business value into the reusable template.
+      String editedText = edits.get(id);
+      StringBuilder originalClauseText = new StringBuilder();
+      for (XWPFParagraph target : targets) originalClauseText.append(paragraphText(target)).append("\\n");
+      if (!containsAllPlaceholders(originalClauseText.toString(), editedText)) continue;
       // Keep placeholder syntax verbatim in the template version.
-      setParagraphLines(targets.get(0), edits.get(id));
+      setParagraphLines(targets.get(0), editedText);
       for (int i = 1; i < targets.size(); i++) setParagraphLines(targets.get(i), "");
     }
   }
@@ -418,6 +436,19 @@ public class ApiController {
     StringBuilder text = new StringBuilder();
     for (XWPFRun run : paragraph.getRuns()) text.append(run.text() == null ? "" : run.text());
     return text.toString();
+  }
+
+  /**
+   * Returns false if an edit removes any business-field placeholder that was
+   * present in the source text. This is used only when saving reusable templates.
+   */
+  private boolean containsAllPlaceholders(String original, String edited) {
+    Matcher matcher = Pattern.compile("\\\\{<\\\\$\\\\.[A-Za-z0-9_.]+>\\\\}").matcher(original == null ? "" : original);
+    String value = edited == null ? "" : edited;
+    while (matcher.find()) {
+      if (!value.contains(matcher.group())) return false;
+    }
+    return true;
   }
 
   private String replaceTokensInText(String text, Map<String,String> data) {

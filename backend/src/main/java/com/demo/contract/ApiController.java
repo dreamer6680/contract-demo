@@ -286,7 +286,7 @@ public class ApiController {
   }
 
   private String safeFileBase(String value) {
-    String cleaned = value == null ? "合同" : value.replace('/', '_').replace('\\\\', '_').replace(':', '_').replace('*', '_').replace('?', '_').replace('"', '_').replace('<', '_').replace('>', '_').replace('|', '_').trim();
+    String cleaned = value == null ? "合同" : value.replace('/', '_').replace('\\', '_').replace(':', '_').replace('*', '_').replace('?', '_').replace('"', '_').replace('<', '_').replace('>', '_').replace('|', '_').trim();
     return cleaned.isEmpty() ? "合同" : cleaned.substring(0, Math.min(cleaned.length(), 60));
   }
 

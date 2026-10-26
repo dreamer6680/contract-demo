@@ -1,0 +1,16 @@
+server:
+  port: 8080
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3307/contract_demo?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai}
+    username: ${SPRING_DATASOURCE_USERNAME:contract}
+    password: ${SPRING_DATASOURCE_PASSWORD:contractpass}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  sql:
+    init:
+      mode: always
+      encoding: UTF-8
+  jackson:
+    default-property-inclusion: non_null
+app:
+  storage-dir: ${APP_STORAGE_DIR:/app/storage}

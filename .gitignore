@@ -1,0 +1,34 @@
+# Environment variables and local secrets
+.env
+.env.*
+!.env.example
+
+# Java / Maven
+backend/target/
+*.class
+*.jar
+*.war
+
+# Node / Vite
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Runtime data and generated contracts
+storage/*
+!storage/.gitkeep
+*.pdf
+*.docx~
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/

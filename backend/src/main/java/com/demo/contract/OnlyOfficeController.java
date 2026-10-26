@@ -79,7 +79,7 @@ public class OnlyOfficeController {
   }
 
   @PostMapping("/callback/{templateId}")
-  public Map<String, Object> callback(@PathVariable String templateId, @RequestBody Map<String, Object> body) throws IOException {
+  public Map<String, Object> callback(@PathVariable String templateId, @RequestHeader(value = "Authorization", required = false) String authorization, @RequestBody Map<String, Object> body) throws IOException {\n    // Require a Document Server-signed callback token; never trust arbitrary public POSTs.\n    String callbackToken = authorization != null && authorization.startsWith("Bearer ")\n        ? authorization.substring(7) : (body.get("token") instanceof String token ? token : null);\n    if (!validToken(callbackToken)) return Map.of("error", 1);
     Object statusValue = body.get("status");
     int status = statusValue instanceof Number n ? n.intValue() : -1;
     // ONLYOFFICE statuses 2 (ready for saving) and 6 (force-save result) carry a document URL.
@@ -110,7 +110,7 @@ public class OnlyOfficeController {
     return id;
   }
 
-  private String sign(Map<String, Object> payload) {
+  private boolean validToken(String token) {\n    if (token == null || token.isBlank()) return false;\n    try { JWT.require(Algorithm.HMAC256(jwtSecret)).build().verify(token); return true; }\n    catch (Exception ignored) { return false; }\n  }\n\n  private String sign(Map<String, Object> payload) {
     return JWT.create().withIssuedAt(Date.from(Instant.now()))
         .withExpiresAt(Date.from(Instant.now().plusSeconds(3600)))
         .withPayload(payload)

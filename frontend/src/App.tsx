@@ -58,8 +58,8 @@ export default function App(){
     <div className="formHeader clauseHeader"><div><h2>合同条款编辑</h2><p>修改条款后，点击“更新 PDF 预览”查看实际分页；预览页数与最终生成文件保持一致。</p></div><div className="previewActions"><button className="secondaryBtn" onClick={resetClauses}><RotateCcw size={14}/>恢复默认条款</button><button className="primaryBtn" disabled={previewBusy} onClick={updatePreview}>{previewBusy?<RefreshCw className="spin" size={14}/>:<FileText size={14}/>}更新 PDF 预览</button></div></div>
     <div className="clauseNotice"><ShieldCheck size={17}/><span><b>业务字段只读</b> · 下方合同信息来自后端接口，不提供手动修改入口；固定条款的编辑仅对本次生成生效。</span></div>
     <section className="simPdfWorkspace">
-     <div className="simPdfToolbar"><div><FileText size={16}/><b>合同页面 · 直接编辑模式</b><span>前端版式模拟</span></div><div className="simPdfToolbarHint">点击正文即可编辑 · 业务字段受保护</div></div>
-     <div className="simPdfCanvas">
+     <div className="simPdfToolbar"><div><FileText size={16}/><b>合同页面 · 直接编辑模式</b><span>前端版式模拟</span></div><div className="simPdfToolbarHint">点击正文即可编辑 · 业务字段受保护 <button className="xmlToggleBtn" onClick={async()=>{if(xmlOpen){setXmlOpen(false);return}setXmlOpen(true);if(!xmlContent){setXmlBusy(true);try{const result=await api('/templates/'+templateId+'/xml');setXmlContent(result.xml||'')}catch(e:any){setXmlContent('读取 XML 失败：'+e.message)}finally{setXmlBusy(false)}}}}> {xmlOpen?'收起 XML':'查看原始 XML'} </button></div></div>
+     {xmlOpen&&<section className="docXmlPanel"><div className="docXmlHeader"><div><b>DOCX 原始 XML</b><span>当前显示 Word 文档主体 document.xml，用于检查段落、样式和 run 结构。</span></div><button className="secondaryBtn" onClick={()=>GenUI.copy(xmlContent)} disabled={!xmlContent||xmlBusy}><Copy size={14}/>复制 XML</button></div>{xmlBusy?<p className="paragraphLoading">正在读取 XML…</p>:<pre className="docXmlCode">{xmlContent||'暂无 XML 内容'}</pre>}</section>}<div className="simPdfCanvas">
       {!templateStructure?<p className="paragraphLoading">正在读取 DOCX 结构…</p>:<article className="simPdfPage">
        <div className="simPdfPageHead"><span>合同模板预览</span><span>编辑模式 · 非最终 PDF</span></div>
        <h2 className="simPdfTitle">煤炭买卖合同</h2>

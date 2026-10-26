@@ -52,6 +52,24 @@ public final class PlaceholderProtectionService {
     }
   }
 
+
+  public boolean hasProtectedControls(Path path) throws IOException {
+    try (ZipFile zip = new ZipFile(path.toFile())) {
+      ZipEntry entry = zip.getEntry(DOCUMENT_XML);
+      if (entry == null) return false;
+      try (InputStream in = zip.getInputStream(entry)) {
+        Document doc = parse(in.readAllBytes());
+        NodeList locks = doc.getElementsByTagNameNS(W, "lock");
+        for (int i = 0; i < locks.getLength(); i++) {
+          Element lock = (Element) locks.item(i);
+          if ("sdtContentLocked".equals(lock.getAttributeNS(W, "val"))) return true;
+        }
+        return false;
+      }
+    } catch (IOException e) { throw e; }
+    catch (Exception e) { throw new IOException("无法检查 DOCX 占位符锁定状态", e); }
+  }
+
   public void assertIntegrity(Path baseline, Path candidate) throws IOException {
     List<String> expected = extractTokens(baseline);
     List<String> actual = extractTokens(candidate);
@@ -98,11 +116,14 @@ public final class PlaceholderProtectionService {
       if (runTexts.getLength() != 1 || runTexts.item(0) != targetText) {
         throw new IOException("占位符所在 Word 文本格式复杂，无法安全锁定：" + token);
       }
+      Matcher inText = TOKEN.matcher(targetText.getTextContent());
+      int tokenCount = 0;
+      while (inText.find()) tokenCount++;
+      if (tokenCount > 1) throw new IOException("同一 Word 文本节点包含多个占位符，无法安全锁定，请先在模板中拆分占位符：" + targetText.getTextContent());
       String value = targetText.getTextContent();
       int start = value.indexOf(token);
       String before = value.substring(0, start);
       String after = value.substring(start + token.length());
-      Node next = run.getNextSibling();
       Element parent = paragraph;
       if (!before.isEmpty()) parent.insertBefore(makeRun(doc, run, before), run);
       parent.insertBefore(makeSdt(doc, run, token), run);

@@ -25,6 +25,7 @@ public class OnlyOfficeController {
   private final String documentUrlBase;
   private final String callbackUrlBase;
   private final String jwtSecret;
+  private final PlaceholderProtectionService placeholderProtection = new PlaceholderProtectionService();
 
   public OnlyOfficeController(
       @Value("${app.storage-dir:/app/storage}") String storageDir,
@@ -43,7 +44,7 @@ public class OnlyOfficeController {
 
   @GetMapping("/config/{templateId}")
   public Map<String, Object> config(@PathVariable String templateId) throws IOException {
-    Path source = editableDocument(templateId);
+    Path source = ensureProtectedDocument(templateId);
     if (!Files.isRegularFile(source)) throw new IllegalArgumentException("模板不存在：" + templateId);
     String key = templateId.replaceAll("[^A-Za-z0-9_-]", "_") + "-" + Files.getLastModifiedTime(source).toMillis();
     Map<String, Object> document = new LinkedHashMap<>();
@@ -71,7 +72,7 @@ public class OnlyOfficeController {
 
   @GetMapping("/document/{templateId}")
   public ResponseEntity<FileSystemResource> document(@PathVariable String templateId) throws IOException {
-    Path path = editableDocument(templateId);
+    Path path = ensureProtectedDocument(templateId);
     if (!Files.isRegularFile(path)) return ResponseEntity.notFound().build();
     return ResponseEntity.ok()
         .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.wordprocessingml.document"))
@@ -94,12 +95,39 @@ public class OnlyOfficeController {
       if (!target.startsWith(storage.resolve("onlyoffice"))) return Map.of("error", 1);
       byte[] bytes = RestClient.create().get().uri(url).retrieve().body(byte[].class);
       if (bytes == null || bytes.length == 0) return Map.of("error", 1);
-      Files.write(target, bytes, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-      // TODO POC next step: validate placeholder inventory and reject modified/missing tokens.
+      Path candidate = Files.createTempFile(storage.resolve("onlyoffice"), "callback-", ".docx");
+      try {
+        Files.write(candidate, bytes, StandardOpenOption.TRUNCATE_EXISTING);
+        // Compare against the immutable source template, not the previously saved copy.
+        placeholderProtection.assertIntegrity(resolveTemplate(templateId), candidate);
+        if (placeholderProtection.hasProtectedControls(candidate)) {
+          Files.move(candidate, target, StandardCopyOption.REPLACE_EXISTING);
+        } else {
+          // Reapply locks if the editor removed content controls but left token text intact.
+          placeholderProtection.createProtectedCopy(candidate, target);
+          Files.deleteIfExists(candidate);
+        }
+      } catch (IOException ex) {
+        Files.deleteIfExists(candidate);
+        return Map.of("error", 1, "message", ex.getMessage());
+      }
     }
     return Map.of("error", 0);
   }
 
+  private Path ensureProtectedDocument(String id) throws IOException {
+    Path baseline = resolveTemplate(id);
+    if (!Files.isRegularFile(baseline)) return baseline;
+    Path saved = storage.resolve("onlyoffice").resolve(safeId(id) + ".docx").normalize();
+    if (!saved.startsWith(storage.resolve("onlyoffice"))) throw new IllegalArgumentException("非法模板路径");
+    if (!Files.isRegularFile(saved)) {
+      placeholderProtection.createProtectedCopy(baseline, saved);
+    } else if (!placeholderProtection.hasProtectedControls(saved)) {
+      // Migrate POC saves created before placeholder locking was added.
+      placeholderProtection.createProtectedCopy(saved, saved);
+    }
+    return saved;
+  }
   private Path editableDocument(String id) {
     Path saved = storage.resolve("onlyoffice").resolve(safeId(id) + ".docx").normalize();
     if (!saved.startsWith(storage.resolve("onlyoffice"))) throw new IllegalArgumentException("非法模板路径");

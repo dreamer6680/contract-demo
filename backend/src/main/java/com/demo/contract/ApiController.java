@@ -9,6 +9,7 @@ import org.springframework.core.io.Resource;
 import org.springframework.http.*;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.io.*;
 import java.nio.file.*;
@@ -25,6 +26,8 @@ public class ApiController {
   private final ObjectMapper mapper;
   private final Path storage;
   private final Path templatePath;
+  private final Path templatesDir;
+  private final Path previewsDir;
 
   public ApiController(JdbcTemplate jdbc, ObjectMapper mapper,
       @Value("${app.storage-dir:/app/storage}") String storageDir) throws IOException {
@@ -32,6 +35,10 @@ public class ApiController {
     this.storage = Paths.get(storageDir).toAbsolutePath().normalize();
     Files.createDirectories(storage);
     this.templatePath = Paths.get("/app/templates/coal-sale-contract.docx");
+    this.templatesDir = this.storage.resolve("templates");
+    this.previewsDir = this.storage.resolve("previews");
+    Files.createDirectories(this.templatesDir);
+    Files.createDirectories(this.previewsDir);
   }
 
   @GetMapping("/health") public Map<String,Object> health() {
@@ -42,7 +49,37 @@ public class ApiController {
     return Map.of("name", "煤炭买卖合同", "source", "contract-template-v2.docx", "fieldCount", fields().size(), "sections", List.of("合同封面", "合同填写说明", "买卖双方信息", "煤炭买卖数量、品种、质量", "合同价格", "交货时间、地点、方式及所有权的转移", "数量确认", "质量确认", "运输", "结算与支付", "违约责任", "免责条款", "争议解决", "保密义务", "其他约定事项", "签署页"));
   }
 
+
+  @GetMapping("/templates") public List<Map<String,Object>> templates() throws IOException {
+    List<Map<String,Object>> result = new ArrayList<>();
+    result.add(Map.of("id","default","name","煤炭买卖合同（公共模板）","isDefault",true));
+    try (var paths = Files.list(templatesDir)) {
+      paths.filter(p -> Files.isRegularFile(p) && p.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".docx"))
+        .sorted(Comparator.comparing(p -> p.getFileName().toString()))
+        .forEach(p -> {
+          String filename = p.getFileName().toString();
+          String id = filename.substring(0, filename.length() - 5);
+          result.add(Map.of("id", id, "name", id, "isDefault", false));
+        });
+    }
+    return result;
+  }
+
+  @PostMapping(value="/templates", consumes=MediaType.MULTIPART_FORM_DATA_VALUE)
+  public Map<String,Object> uploadTemplate(@RequestPart("file") MultipartFile file) throws IOException {
+    String original = Optional.ofNullable(file.getOriginalFilename()).orElse("uploaded-template.docx");
+    if (!original.toLowerCase(Locale.ROOT).endsWith(".docx")) throw new IllegalArgumentException("只支持上传 .docx 模板");
+    if (file.isEmpty() || file.getSize() > 20L * 1024 * 1024) throw new IllegalArgumentException("模板文件为空或超过 20 MB");
+    String id = UUID.randomUUID().toString();
+    Path target = templatesDir.resolve(id + ".docx").normalize();
+    if (!target.startsWith(templatesDir)) throw new IllegalArgumentException("非法文件名");
+    try (InputStream in = file.getInputStream()) { Files.copy(in, target); }
+    String name = original.replace('/', '_').replace('\\', '_').replaceAll("(?i)\\.docx$", "");
+    return Map.of("id",id,"name",name,"isDefault",false,"message","新模板已保存，可在模板列表中选择；公共模板未被修改。");
+  }
+
   @GetMapping("/contract-fields") public List<Map<String,Object>> contractFields() { return fields(); }
+
 
   /** Return default clause text on every load. User edits are only applied to the current generation request. */
   @GetMapping("/contract-clauses") public List<Map<String,Object>> contractClauses() { return defaultClauses(); }
@@ -115,6 +152,31 @@ public class ApiController {
     return out;
   }
 
+
+  @PostMapping("/preview") public Map<String,Object> preview(@RequestBody Map<String,Object> body) throws Exception {
+    String id = UUID.randomUUID().toString();
+    Path dir = previewsDir.resolve(id);
+    Files.createDirectories(dir);
+    try {
+      renderDocument(body, dir.resolve("preview.docx"), dir.resolve("preview.pdf"), id);
+      return Map.of("id", id, "url", "/api/previews/" + id, "message", "已按所选 DOCX 模板生成真实分页预览。");
+    } catch (Exception e) { deleteTree(dir); throw e; }
+  }
+
+  @GetMapping("/previews/{id}") public ResponseEntity<Resource> previewPdf(@PathVariable String id) throws IOException {
+    if (!id.matches("[a-f0-9-]{36}")) return ResponseEntity.badRequest().build();
+    Path p = previewsDir.resolve(id).resolve("preview.pdf").normalize();
+    if (!p.startsWith(previewsDir) || !Files.isRegularFile(p)) return ResponseEntity.notFound().build();
+    return ResponseEntity.ok().contentType(MediaType.APPLICATION_PDF)
+      .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.inline().filename("合同预览.pdf", java.nio.charset.StandardCharsets.UTF_8).build().toString())
+      .body(new FileSystemResource(p));
+  }
+
+  private void deleteTree(Path dir) {
+    try (var paths = Files.walk(dir)) { paths.sorted(Comparator.reverseOrder()).forEach(p -> { try { Files.deleteIfExists(p); } catch (IOException ignored) {} }); }
+    catch (IOException ignored) {}
+  }
+
   @PostMapping("/documents") public Map<String,Object> generate(@RequestBody Map<String,Object> body) throws Exception {
     Map<String,String> data = new LinkedHashMap<>();
     Object raw = body.get("data");
@@ -130,37 +192,71 @@ public class ApiController {
         }
       }
     }
-    List<Map<String,Object>> clauseDefaults = defaultClauses();
+
+    String templateId = String.valueOf(body.getOrDefault("templateId", "default"));
+    String templateName = resolveTemplateName(templateId);
     String stamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
     String id = UUID.randomUUID().toString();
-    Path docx = storage.resolve("煤炭买卖合同-" + stamp + "-" + id.substring(0,8) + ".docx");
-    Path pdf = storage.resolve("煤炭买卖合同-" + stamp + "-" + id.substring(0,8) + ".pdf");
-    try (InputStream in = getTemplateStream(); XWPFDocument document = new XWPFDocument(in)) {
-      applyClauseEdits(document, clauseDefaults, clauseEdits, data);
+    String baseName = safeFileBase(templateName) + "-" + stamp + "-" + id.substring(0,8);
+    Path docx = storage.resolve(baseName + ".docx");
+    Path pdf = storage.resolve(baseName + ".pdf");
+    String output = renderDocument(body, docx, pdf, id);
+    Map<String,Object> snapshot = new LinkedHashMap<>();
+    snapshot.put("data", data); snapshot.put("clauses", clauseEdits);
+    snapshot.put("templateId", templateId); snapshot.put("templateName", templateName);
+    jdbc.update("INSERT INTO contract_document_v2(template_name,docx_path,pdf_path,data_snapshot) VALUES(?,?,?,?)", templateName, docx.toString(), pdf.toString(), mapper.writeValueAsString(snapshot));
+    Long docId = jdbc.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+    return Map.of("id", docId, "templateName", templateName, "pdfFileName", pdf.getFileName().toString(), "docxFileName", docx.getFileName().toString(), "downloadUrl", "/api/documents/" + docId + "/download", "docxUrl", "/api/documents/" + docId + "/download-docx", "message", "已按所选 DOCX 模板生成文件。预览和下载均使用同一份实际排版结果。", "conversionLog", output.strip());
+  }
+
+  private String renderDocument(Map<String,Object> body, Path docx, Path pdf, String jobId) throws Exception {
+    Map<String,String> data = new LinkedHashMap<>();
+    Object raw = body.get("data");
+    if (raw instanceof Map<?,?> map) map.forEach((k,v) -> data.put(String.valueOf(k), v == null ? "" : String.valueOf(v)));
+    Map<String,String> clauseEdits = new LinkedHashMap<>();
+    Object rawClauses = body.get("clauses");
+    if (rawClauses instanceof List<?> list) for (Object item : list) {
+      if (item instanceof Map<?,?> clause && clause.get("id") != null && clause.get("content") != null)
+        clauseEdits.put(String.valueOf(clause.get("id")), String.valueOf(clause.get("content")));
+    }
+    String templateId = String.valueOf(body.getOrDefault("templateId", "default"));
+    try (InputStream in = getTemplateStream(templateId); XWPFDocument document = new XWPFDocument(in)) {
+      applyClauseEdits(document, defaultClauses(), clauseEdits, data);
       replaceInDocument(document, data);
       try (OutputStream out = Files.newOutputStream(docx)) { document.write(out); }
     }
-    Process process = new ProcessBuilder("libreoffice", "-env:UserInstallation=file:///tmp/lo-" + id, "--headless", "--convert-to", "pdf", "--outdir", storage.toString(), docx.toString()).redirectErrorStream(true).start();
+    Files.createDirectories(pdf.getParent());
+    Process process = new ProcessBuilder("libreoffice", "-env:UserInstallation=file:///tmp/lo-" + jobId, "--headless", "--convert-to", "pdf", "--outdir", pdf.getParent().toString(), docx.toString()).redirectErrorStream(true).start();
     String output;
     try (InputStream is = process.getInputStream()) { output = new String(is.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8); }
     if (!process.waitFor(90, java.util.concurrent.TimeUnit.SECONDS)) { process.destroyForcibly(); throw new IllegalStateException("DOCX 转 PDF 超时"); }
-    if (process.exitValue() != 0 || !Files.exists(pdf)) {
-      // LibreOffice uses the source basename for its output, which is the same basename as pdf above.
-      throw new IllegalStateException("DOCX 转 PDF 失败：" + output);
-    }
-    Map<String,Object> snapshot = new LinkedHashMap<>();
-    snapshot.put("data", data);
-    snapshot.put("clauses", clauseEdits);
-    jdbc.update("INSERT INTO contract_document_v2(template_name,docx_path,pdf_path,data_snapshot) VALUES(?,?,?,?)", "煤炭买卖合同", docx.toString(), pdf.toString(), mapper.writeValueAsString(snapshot));
-    Long docId = jdbc.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
-    return Map.of("id", docId, "templateName", "煤炭买卖合同", "pdfFileName", pdf.getFileName().toString(), "docxFileName", docx.getFileName().toString(), "downloadUrl", "/api/documents/" + docId + "/download", "docxUrl", "/api/documents/" + docId + "/download-docx", "message", "已按原始 DOCX 模板填充数据并生成 PDF。建议先核对分页、字体、表格及签署位置。", "conversionLog", output.strip());
+    if (process.exitValue() != 0 || !Files.exists(pdf)) throw new IllegalStateException("DOCX 转 PDF 失败：" + output);
+    return output;
   }
 
-  private InputStream getTemplateStream() throws IOException {
+  private String resolveTemplateName(String templateId) throws IOException {
+    if ("default".equals(templateId)) return "煤炭买卖合同";
+    return resolveUploadedTemplate(templateId).getFileName().toString().replaceFirst("(?i)\\\\.docx$", "");
+  }
+
+  private Path resolveUploadedTemplate(String templateId) throws IOException {
+    if (templateId == null || !templateId.matches("[a-f0-9-]{36}")) throw new FileNotFoundException("模板不存在，请重新选择");
+    Path p = templatesDir.resolve(templateId + ".docx").normalize();
+    if (!p.startsWith(templatesDir) || !Files.isRegularFile(p)) throw new FileNotFoundException("所选模板不存在，请重新上传或选择");
+    return p;
+  }
+
+  private InputStream getTemplateStream(String templateId) throws IOException {
+    if (!"default".equals(templateId)) return Files.newInputStream(resolveUploadedTemplate(templateId));
     if (Files.exists(templatePath)) return Files.newInputStream(templatePath);
     InputStream in = getClass().getResourceAsStream("/templates/coal-sale-contract.docx");
-    if (in == null) throw new FileNotFoundException("找不到原始 DOCX 模板");
+    if (in == null) throw new FileNotFoundException("找不到公共 DOCX 模板");
     return in;
+  }
+
+  private String safeFileBase(String value) {
+    String cleaned = value == null ? "合同" : value.replace('/', '_').replace('\\\\', '_').replace(':', '_').replace('*', '_').replace('?', '_').replace('"', '_').replace('<', '_').replace('>', '_').replace('|', '_').trim();
+    return cleaned.isEmpty() ? "合同" : cleaned.substring(0, Math.min(cleaned.length(), 60));
   }
 
   @GetMapping("/documents") public List<Map<String,Object>> documents() {

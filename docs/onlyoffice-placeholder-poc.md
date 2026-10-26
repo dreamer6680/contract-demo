@@ -6,7 +6,7 @@
 
 ## 当前状态
 
-本分支先加入可选的 ONLYOFFICE Docs 容器，尚未完成编辑器前端接入、内容控件注入或保存回调。不能把“启动了 Document Server”视为锁定行为已验证。
+当前已加入可选的 ONLYOFFICE Docs 容器、工作台入口、后端编辑器配置/JWT 签名、DOCX 下载和保存回调。保存文件写入 storage/onlyoffice/<templateId>.docx，重新打开时优先读取保存副本。占位符内容控件注入和保存后完整性校验仍未实现，不能把基础接入视为锁定行为已验证。
 
 ## 启动 Document Server
 

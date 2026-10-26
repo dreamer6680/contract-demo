@@ -164,7 +164,11 @@ public class ApiController {
       int index = 0;
       for (XWPFParagraph paragraph : document.getParagraphs()) {
         String value = paragraphText(paragraph);
-        if (!value.isBlank()) result.add(Map.of("index", index, "text", value));
+        // Only expose editable contract text. Paragraphs containing business
+        // placeholders are data-binding locations, not user-editable clauses.
+        if (!value.isBlank() && !containsBusinessPlaceholder(value)) {
+          result.add(Map.of("index", index, "text", value));
+        }
         index++;
       }
     }
@@ -314,17 +318,23 @@ public class ApiController {
     }
     String templateId = String.valueOf(body.getOrDefault("templateId", "default"));
     try (InputStream in = getTemplateStream(templateId); XWPFDocument document = new XWPFDocument(in)) {
-      if (!"default".equals(templateId)) {
-        Object rawParagraphs = body.get("paragraphEdits");
-        if (rawParagraphs instanceof List<?> edits) {
-          List<XWPFParagraph> paragraphs = document.getParagraphs();
-          for (Object item : edits) if (item instanceof Map<?,?> edit && edit.get("index") != null && edit.get("text") != null) {
-            int index;
-            try { index = Integer.parseInt(String.valueOf(edit.get("index"))); } catch (NumberFormatException ex) { continue; }
-            if (index >= 0 && index < paragraphs.size()) setParagraphLines(paragraphs.get(index), String.valueOf(edit.get("text")));
-          }
+      Object rawParagraphs = body.get("paragraphEdits");
+      if (rawParagraphs instanceof List<?> edits) {
+        List<XWPFParagraph> paragraphs = document.getParagraphs();
+        for (Object item : edits) if (item instanceof Map<?,?> edit && edit.get("index") != null && edit.get("text") != null) {
+          int index;
+          try { index = Integer.parseInt(String.valueOf(edit.get("index"))); } catch (NumberFormatException ex) { continue; }
+          if (index < 0 || index >= paragraphs.size()) continue;
+          XWPFParagraph paragraph = paragraphs.get(index);
+          String originalText = paragraphText(paragraph);
+          String editedText = String.valueOf(edit.get("text"));
+          // The client can only edit parsed non-placeholder paragraphs. Enforce
+          // the same rule server-side so a crafted request cannot overwrite fields.
+          if (containsBusinessPlaceholder(originalText) || Objects.equals(originalText, editedText)) continue;
+          setParagraphLines(paragraph, editedText);
         }
-      } else {
+      } else if ("default".equals(templateId)) {
+        // Backward compatibility for older clients that still submit clause edits.
         applyClauseEdits(document, defaultClauses(), clauseEdits, data);
       }
       replaceInDocument(document, data);
@@ -436,6 +446,10 @@ public class ApiController {
     StringBuilder text = new StringBuilder();
     for (XWPFRun run : paragraph.getRuns()) text.append(run.text() == null ? "" : run.text());
     return text.toString();
+  }
+
+  private boolean containsBusinessPlaceholder(String text) {
+    return Pattern.compile("\\\\{<\\\\$\\\\.[A-Za-z0-9_.]+>}").matcher(text == null ? "" : text).find();
   }
 
   /**

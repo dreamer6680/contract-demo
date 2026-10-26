@@ -85,7 +85,6 @@ public class ApiController {
     try (InputStream in = getTemplateStream(sourceId);
          XWPFDocument document = new XWPFDocument(in)) {
       Object rawParagraphs = body.get("paragraphEdits");
-      Object rawParagraphs = body.get("paragraphEdits");
       if (rawParagraphs instanceof List<?> edits) {
         List<XWPFParagraph> paragraphs = document.getParagraphs();
         for (Object item : edits) {

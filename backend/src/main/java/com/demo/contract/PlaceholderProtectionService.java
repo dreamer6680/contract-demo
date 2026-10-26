@@ -142,9 +142,31 @@ public final class PlaceholderProtectionService {
         throw new IOException("占位符所在文本节点结构异常，无法安全锁定：" + token.value());
       }
 
+      // The text may live inside a run-level container such as a hyperlink or
+      // an existing content control. Only rewrite runs that share the same parent;
+      // never move runs across WordprocessingML containers.
+      Node parent = startRun.getParentNode();
+      if (!(parent instanceof Element) || endRun.getParentNode() != parent) {
+        throw new IOException("占位符跨越多个 Word 结构容器，无法安全锁定：" + token.value());
+      }
       String before = startValue.substring(0, startOffset);
       String after = endValue.substring(endOffset);
-      Node parent = paragraph;
+
+      if (startRun != endRun) {
+        Node check = startRun.getNextSibling();
+        while (check != null && check != endRun) {
+          if (!(check instanceof Element element)
+              || !"r".equals(element.getLocalName())
+              || !W.equals(element.getNamespaceURI())) {
+            throw new IOException("占位符跨越非文本 Word 结构，无法安全锁定：" + token.value());
+          }
+          check = check.getNextSibling();
+        }
+        if (check != endRun) {
+          throw new IOException("占位符起止文本不在同一 Word 容器中，无法安全锁定：" + token.value());
+        }
+      }
+
       if (!before.isEmpty()) parent.insertBefore(makeRun(doc, startRun, before), startRun);
 
       Element sdt = doc.createElementNS(W, "w:sdt");
@@ -185,12 +207,14 @@ public final class PlaceholderProtectionService {
 
   private Element directRun(Element text, Element paragraph, String token) throws IOException {
     Node parent = text.getParentNode();
-    if (!(parent instanceof Element run) || !"r".equals(run.getLocalName()) || run.getParentNode() != paragraph) {
-      throw new IOException("占位符不在普通段落文本中，无法安全锁定：" + token);
+    if (!(parent instanceof Element run)
+        || !"r".equals(run.getLocalName())
+        || !W.equals(run.getNamespaceURI())) {
+      throw new IOException("占位符文本不属于普通 Word Run，无法安全锁定：" + token);
     }
     NodeList runTexts = run.getElementsByTagNameNS(W, "t");
     if (runTexts.getLength() != 1 || runTexts.item(0) != text) {
-      throw new IOException("占位符所在 Word 文本格式复杂，无法安全锁定：" + token);
+      throw new IOException("占位符所在 Word Run 包含复杂文本结构，无法安全锁定：" + token);
     }
     return run;
   }

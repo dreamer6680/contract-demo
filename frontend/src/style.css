@@ -48,3 +48,14 @@
 .simPdfTable{margin:8px 0;max-width:100%;overflow:auto}.simPdfTable table{width:100%;border-collapse:collapse;font:inherit}.simPdfTable td{border:1px solid #777;padding:5px 7px;vertical-align:top;min-width:40px}.simPdfTable .simPdfParagraph{margin:0}.simPdfPageFoot{margin-top:45px;padding-top:10px;border-top:1px solid #eee;justify-content:center}
 .simPdfFooter{border-top:1px solid #dce3ec}.simPdfFooter>span{font-size:10px}.simPdfFooter .secondaryBtn{margin-left:auto}
 @media(max-width:760px){.simPdfCanvas{padding:10px 0;max-height:none}.simPdfPage{width:100%;min-height:unset;padding:28px 20px 36px;font-size:12px}.simPdfTitle{font-size:20px}.simPdfFooter{align-items:flex-start;flex-direction:column}.simPdfFooter .secondaryBtn{margin-left:0}.simPdfToolbarHint{width:100%}}
+
+/* Source DOCX typography */
+.simPdfParagraph{white-space:pre-wrap;overflow-wrap:anywhere}
+.simPdfParagraph .simPdfEditableText{display:block;min-height:1.9em;width:100%;padding:1px 3px;border:1px solid transparent;border-radius:3px;outline:none;white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;line-height:inherit}
+.simPdfParagraph.editable .simPdfEditableText:hover{border-color:#d5e0f1;background:#fbfcff}
+.simPdfParagraph.editable .simPdfEditableText:focus{border-color:#8aa9d8;background:#f8faff}
+.simPdfParagraph.Title,.simPdfParagraph.title{text-align:center;font-size:22pt;font-weight:700;line-height:1.5;margin:18pt 0}
+.simPdfParagraph.Subtitle,.simPdfParagraph.subtitle{text-align:center;font-size:14pt;margin:8pt 0 18pt}
+.simPdfParagraph.Heading1,.simPdfParagraph.heading1{font-size:16pt;font-weight:700;margin:18pt 0 9pt}
+.simPdfParagraph.Heading2,.simPdfParagraph.heading2{font-size:14pt;font-weight:700;margin:14pt 0 7pt}
+.simPdfParagraph.Heading3,.simPdfParagraph.heading3{font-size:12pt;font-weight:700;margin:10pt 0 5pt}

@@ -35,3 +35,16 @@
 .structureTable .structureParagraph{display:block;border:0;padding:3px 0}
 .structureTable .structureParagraph .structureKind{display:none}
 .structureEditTitle{font-size:12px;font-weight:700;color:#35445a;margin:12px 0 4px}
+
+
+/* Frontend PDF-like inline editor. This is an editable visual approximation, not a PDF canvas. */
+.simPdfWorkspace{margin:16px 0 26px;border:1px solid #dce3ec;border-radius:11px;overflow:hidden;background:#e9edf3}
+.simPdfToolbar,.simPdfFooter{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px 16px;background:#f9fafc;color:#68778c;font-size:11px}
+.simPdfToolbar{border-bottom:1px solid #dce3ec}.simPdfToolbar>div:first-child{display:flex;align-items:center;gap:9px;color:#35445a}.simPdfToolbar>div:first-child span{font-size:9px;background:#e8eef9;color:#4267a7;padding:4px 7px;border-radius:4px}.simPdfToolbarHint{color:#8b96a5}
+.simPdfCanvas{padding:24px 12px;max-height:calc(100vh - 280px);min-height:620px;overflow:auto}
+.simPdfPage{width:min(100%,794px);min-height:1000px;margin:0 auto;background:#fff;box-shadow:0 3px 18px #24344a1a;padding:66px 70px 48px;color:#242424;font-family:"Songti SC","SimSun",serif;font-size:14px;line-height:1.9}
+.simPdfPageHead,.simPdfPageFoot{display:flex;justify-content:space-between;gap:12px;font-family:Arial,"Noto Sans SC",sans-serif;font-size:9px;color:#9aa3b0}.simPdfPageHead{padding-bottom:22px;border-bottom:1px solid #eee}.simPdfTitle{text-align:center;font-family:inherit;font-size:24px;letter-spacing:5px;margin:26px 0 30px;color:#222}
+.simPdfContent{overflow-wrap:anywhere}.simPdfParagraph{position:relative;margin:3px 0;white-space:pre-wrap;line-height:1.95}.simPdfParagraph.editable textarea{display:block;width:100%;min-height:31px;resize:vertical;border:1px solid transparent;border-radius:3px;background:transparent;padding:1px 4px;color:#222;font:inherit;line-height:1.95;outline:none;white-space:pre-wrap}.simPdfParagraph.editable textarea:hover{border-color:#d5e0f1;background:#fbfcff}.simPdfParagraph.editable textarea:focus{border-color:#8aa9d8;background:#f8faff;box-shadow:0 0 0 2px #8aa9d81a}.simPdfParagraph.protected{padding:1px 4px;color:#353535}.simPdfLock{display:inline-block;margin-left:5px;font:9px/1.4 Arial,sans-serif;color:#9b784b;background:#fff5e8;border-radius:3px;padding:2px 4px;vertical-align:middle}
+.simPdfTable{margin:8px 0;max-width:100%;overflow:auto}.simPdfTable table{width:100%;border-collapse:collapse;font:inherit}.simPdfTable td{border:1px solid #777;padding:5px 7px;vertical-align:top;min-width:40px}.simPdfTable .simPdfParagraph{margin:0}.simPdfPageFoot{margin-top:45px;padding-top:10px;border-top:1px solid #eee;justify-content:center}
+.simPdfFooter{border-top:1px solid #dce3ec}.simPdfFooter>span{font-size:10px}.simPdfFooter .secondaryBtn{margin-left:auto}
+@media(max-width:760px){.simPdfCanvas{padding:10px 0;max-height:none}.simPdfPage{width:100%;min-height:unset;padding:28px 20px 36px;font-size:12px}.simPdfTitle{font-size:20px}.simPdfFooter{align-items:flex-start;flex-direction:column}.simPdfFooter .secondaryBtn{margin-left:0}.simPdfToolbarHint{width:100%}}

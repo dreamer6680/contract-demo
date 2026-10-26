@@ -98,42 +98,104 @@ public final class PlaceholderProtectionService {
     collectTextNodes(paragraph, textNodes);
     StringBuilder full = new StringBuilder();
     for (Element t : textNodes) full.append(t.getTextContent());
+
     Matcher matcher = TOKEN.matcher(full);
-    List<String> tokens = new ArrayList<>();
-    while (matcher.find()) tokens.add(matcher.group());
-    for (String token : tokens) {
-      Element targetText = null;
-      int found = 0;
+    List<TokenSpan> tokens = new ArrayList<>();
+    while (matcher.find()) tokens.add(new TokenSpan(matcher.group(), matcher.start(), matcher.end()));
+    // Work from right to left so replacing a later placeholder does not invalidate offsets
+    // or DOM nodes that belong to an earlier placeholder.
+    tokens.sort(Comparator.comparingInt(TokenSpan::start).reversed());
+    for (TokenSpan token : tokens) {
+      int position = 0;
+      Element startText = null;
+      Element endText = null;
+      int startOffset = -1;
+      int endOffset = -1;
       for (Element t : textNodes) {
-        String value = t.getTextContent();
-        if (value.contains(token)) { targetText = t; found++; }
+        int next = position + t.getTextContent().length();
+        if (startText == null && token.start() >= position && token.start() < next) {
+          startText = t;
+          startOffset = token.start() - position;
+        }
+        if (token.end() > position && token.end() <= next) {
+          endText = t;
+          endOffset = token.end() - position;
+          break;
+        }
+        position = next;
       }
-      if (found == 0) throw new IOException("未能定位占位符：" + token);
-      if (found > 1) throw new IOException("占位符跨多个 Word 文本节点，无法安全锁定，请先在模板中将占位符设为连续文本：" + token);
-      Element run = (Element) targetText.getParentNode();
-      if (!"r".equals(run.getLocalName()) || run.getParentNode() != paragraph) {
-        throw new IOException("占位符不在普通段落文本中，无法安全锁定：" + token);
+      if (startText == null || endText == null) {
+        throw new IOException("未能定位占位符：" + token.value());
       }
-      NodeList runTexts = run.getElementsByTagNameNS(W, "t");
-      if (runTexts.getLength() != 1 || runTexts.item(0) != targetText) {
-        throw new IOException("占位符所在 Word 文本格式复杂，无法安全锁定：" + token);
+
+      Element startRun = directRun(startText, paragraph, token.value());
+      Element endRun = directRun(endText, paragraph, token.value());
+      String startValue = startText.getTextContent();
+      String endValue = endText.getTextContent();
+      Matcher inStart = TOKEN.matcher(startValue);
+      int countInStart = 0;
+      while (inStart.find()) countInStart++;
+      if (countInStart > 1) {
+        throw new IOException("同一 Word 文本节点包含多个占位符，无法安全锁定，请先在模板中拆分占位符：" + startValue);
       }
-      Matcher inText = TOKEN.matcher(targetText.getTextContent());
-      int tokenCount = 0;
-      while (inText.find()) tokenCount++;
-      if (tokenCount > 1) throw new IOException("同一 Word 文本节点包含多个占位符，无法安全锁定，请先在模板中拆分占位符：" + targetText.getTextContent());
-      String value = targetText.getTextContent();
-      int start = value.indexOf(token);
-      String before = value.substring(0, start);
-      String after = value.substring(start + token.length());
-      Element parent = paragraph;
-      if (!before.isEmpty()) parent.insertBefore(makeRun(doc, run, before), run);
-      parent.insertBefore(makeSdt(doc, run, token), run);
-      if (!after.isEmpty()) parent.insertBefore(makeRun(doc, run, after), run);
-      parent.removeChild(run);
-      // Refreshing text nodes is unnecessary: tokens are unique and the original run is replaced.
+      if (startText == endText && countInStart != 1) {
+        throw new IOException("占位符所在文本节点结构异常，无法安全锁定：" + token.value());
+      }
+
+      String before = startValue.substring(0, startOffset);
+      String after = endValue.substring(endOffset);
+      Node parent = paragraph;
+      if (!before.isEmpty()) parent.insertBefore(makeRun(doc, startRun, before), startRun);
+
+      Element sdt = doc.createElementNS(W, "w:sdt");
+      Element pr = doc.createElementNS(W, "w:sdtPr");
+      Element alias = doc.createElementNS(W, "w:alias");
+      alias.setAttributeNS(W, "w:val", "Protected placeholder");
+      Element tag = doc.createElementNS(W, "w:tag");
+      tag.setAttributeNS(W, "w:val", "protected:" + token.value());
+      Element lock = doc.createElementNS(W, "w:lock");
+      lock.setAttributeNS(W, "w:val", "sdtContentLocked");
+      pr.appendChild(alias);
+      pr.appendChild(lock);
+      pr.appendChild(tag);
+      Element content = doc.createElementNS(W, "w:sdtContent");
+
+      if (startText == endText) {
+        content.appendChild(makeRun(doc, startRun, token.value()));
+      } else {
+        // Preserve text before/after the placeholder and retain the run formatting for each
+        // fragment inside the protected content control.
+        content.appendChild(makeRun(doc, startRun, startValue.substring(startOffset)));
+        Node current = startRun.getNextSibling();
+        while (current != null && current != endRun) {
+          Node next = current.getNextSibling();
+          parent.removeChild(current);
+          current = next;
+        }
+        content.appendChild(makeRun(doc, endRun, endValue.substring(0, endOffset)));
+      }
+      sdt.appendChild(pr);
+      sdt.appendChild(content);
+      parent.insertBefore(sdt, startRun);
+      parent.removeChild(startRun);
+      if (endRun != startRun && endRun.getParentNode() == parent) parent.removeChild(endRun);
+      if (!after.isEmpty()) parent.insertBefore(makeRun(doc, endRun, after), sdt.getNextSibling());
     }
   }
+
+  private Element directRun(Element text, Element paragraph, String token) throws IOException {
+    Node parent = text.getParentNode();
+    if (!(parent instanceof Element run) || !"r".equals(run.getLocalName()) || run.getParentNode() != paragraph) {
+      throw new IOException("占位符不在普通段落文本中，无法安全锁定：" + token);
+    }
+    NodeList runTexts = run.getElementsByTagNameNS(W, "t");
+    if (runTexts.getLength() != 1 || runTexts.item(0) != text) {
+      throw new IOException("占位符所在 Word 文本格式复杂，无法安全锁定：" + token);
+    }
+    return run;
+  }
+
+  private record TokenSpan(String value, int start, int end) {}
 
   private Element makeRun(Document doc, Element originalRun, String text) {
     Element run = (Element) originalRun.cloneNode(true);

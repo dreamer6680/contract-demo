@@ -499,12 +499,21 @@ public class ApiController {
         XWPFParagraph heading = document.insertNewParagraph(cursor);
         if (headingStyle != null && headingStyle.getCTP().getPPr()!=null)
           heading.getCTP().setPPr((org.openxmlformats.schemas.wordprocessingml.x2006.main.CTPPr)headingStyle.getCTP().getPPr().copy());
-        heading.createRun().setText(title);
+        XWPFRun headingRun = heading.createRun();
+        if (headingStyle != null && !headingStyle.getRuns().isEmpty() && headingStyle.getRuns().get(0).getCTR().getRPr()!=null)
+          headingRun.getCTR().setRPr((org.openxmlformats.schemas.wordprocessingml.x2006.main.CTRPr)headingStyle.getRuns().get(0).getCTR().getRPr().copy());
+        headingRun.setText(title);
         XWPFParagraph paragraph = document.insertNewParagraph(cursor);
         if (bodyStyle != null && bodyStyle.getCTP().getPPr()!=null)
           paragraph.getCTP().setPPr((org.openxmlformats.schemas.wordprocessingml.x2006.main.CTPPr)bodyStyle.getCTP().getPPr().copy());
         String[] lines = content.split("\\R",-1);
-        for (int i=0;i<lines.length;i++) { XWPFRun run=paragraph.createRun(); if(i>0) run.addBreak(); run.setText(lines[i]); }
+        for (int i=0;i<lines.length;i++) {
+          XWPFRun run=paragraph.createRun();
+          if (bodyStyle != null && !bodyStyle.getRuns().isEmpty() && bodyStyle.getRuns().get(0).getCTR().getRPr()!=null)
+            run.getCTR().setRPr((org.openxmlformats.schemas.wordprocessingml.x2006.main.CTRPr)bodyStyle.getRuns().get(0).getCTR().getRPr().copy());
+          if(i>0) run.addBreak();
+          run.setText(lines[i]);
+        }
       } finally { cursor.dispose(); }
     }
   }

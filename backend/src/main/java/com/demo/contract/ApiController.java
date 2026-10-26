@@ -71,6 +71,38 @@ public class ApiController {
     return result;
   }
 
+  @PostMapping("/templates/save")
+  public Map<String,Object> saveTemplateVersion(@RequestBody Map<String,Object> body) throws Exception {
+    String sourceId = String.valueOf(body.getOrDefault("templateId", "default"));
+    String name = String.valueOf(body.getOrDefault("name", "合同模板")).trim();
+    if (name.isBlank()) name = "合同模板";
+    String id = UUID.randomUUID().toString();
+    Path target = templatesDir.resolve(id + ".docx").normalize();
+    Path tempPdf = previewsDir.resolve(id + ".pdf");
+    if (!target.startsWith(templatesDir)) throw new IllegalArgumentException("非法模板路径");
+    try {
+      renderDocument(body, target, tempPdf, id);
+      Files.writeString(templatesDir.resolve(id + ".name"), name);
+      return Map.of("id", id, "name", name, "isDefault", false,
+        "sourceTemplateId", sourceId, "message", "模板版本已保存。原模板及其他版本未被覆盖。");
+    } catch (Exception ex) {
+      Files.deleteIfExists(target);
+      Files.deleteIfExists(tempPdf);
+      throw ex;
+    } finally {
+      Files.deleteIfExists(tempPdf);
+    }
+  }
+
+  @GetMapping("/templates/{id}/file")
+  public ResponseEntity<Resource> templateFile(@PathVariable String id) throws IOException {
+    Path p = "default".equals(id) ? templatePath : resolveUploadedTemplate(id);
+    if (!Files.isRegularFile(p)) return ResponseEntity.notFound().build();
+    return ResponseEntity.ok()
+      .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.wordprocessingml.document"))
+      .body(new FileSystemResource(p));
+  }
+
   @PostMapping(value="/templates", consumes=MediaType.MULTIPART_FORM_DATA_VALUE)
   public Map<String,Object> uploadTemplate(@RequestPart("file") MultipartFile file) throws IOException {
     String original = Optional.ofNullable(file.getOriginalFilename()).orElse("uploaded-template.docx");

@@ -84,6 +84,7 @@ public class ApiController {
     // renderDocument(), because it replaces placeholders with the current data.
     try (InputStream in = getTemplateStream(sourceId);
          XWPFDocument document = new XWPFDocument(in)) {
+      insertNewSections(document, body.get("newSections"));
       Object rawParagraphs = body.get("paragraphEdits");
       if (rawParagraphs instanceof List<?> edits) {
         List<XWPFParagraph> paragraphs = documentBodyParagraphs(document);
@@ -430,6 +431,7 @@ public class ApiController {
     }
     String templateId = String.valueOf(body.getOrDefault("templateId", "default"));
     try (InputStream in = getTemplateStream(templateId); XWPFDocument document = new XWPFDocument(in)) {
+      insertNewSections(document, body.get("newSections"));
       Object rawParagraphs = body.get("paragraphEdits");
       if (rawParagraphs instanceof List<?> edits) {
         // The frontend indexes paragraphs recursively in DOCX body order,
@@ -463,6 +465,45 @@ public class ApiController {
     if (!process.waitFor(90, java.util.concurrent.TimeUnit.SECONDS)) { process.destroyForcibly(); throw new IllegalStateException("DOCX 转 PDF 超时"); }
     if (process.exitValue() != 0 || !Files.exists(pdf)) throw new IllegalStateException("DOCX 转 PDF 失败：" + output);
     return output;
+  }
+
+  /** Insert new top-level sections before a matching paragraph and copy its Word paragraph properties. */
+  private void insertNewSections(XWPFDocument document, Object rawSections) {
+    if (!(rawSections instanceof List<?> sections) || sections.isEmpty()) return;
+    for (Object item : sections) {
+      if (!(item instanceof Map<?,?> section)) continue;
+      String title = String.valueOf(section.containsKey("title") ? section.get("title") : "").trim();
+      String content = String.valueOf(section.containsKey("content") ? section.get("content") : "").trim();
+      String beforeTitle = String.valueOf(section.containsKey("beforeTitle") ? section.get("beforeTitle") : "").trim();
+      if (title.isBlank()) continue;
+      List<XWPFParagraph> bodyParagraphs = new ArrayList<>();
+      for (IBodyElement element : document.getBodyElements()) if (element instanceof XWPFParagraph p) bodyParagraphs.add(p);
+      XWPFParagraph target = null;
+      int targetIndex = -1;
+      if (!beforeTitle.isBlank()) {
+        for (int i=0;i<bodyParagraphs.size();i++) {
+          String t = paragraphText(bodyParagraphs.get(i)).trim();
+          if (t.equals(beforeTitle) || t.contains(beforeTitle)) { target=bodyParagraphs.get(i); targetIndex=i; break; }
+        }
+        if (target == null) throw new IllegalArgumentException("找不到新增章节的插入位置：" + beforeTitle);
+      }
+      XWPFParagraph headingStyle = target != null ? target : (bodyParagraphs.isEmpty()?null:bodyParagraphs.get(bodyParagraphs.size()-1));
+      XWPFParagraph bodyStyle = targetIndex >= 0 && targetIndex+1<bodyParagraphs.size()?bodyParagraphs.get(targetIndex+1):headingStyle;
+      org.apache.xmlbeans.XmlCursor cursor = target != null ? target.getCTP().newCursor()
+          : (headingStyle != null ? headingStyle.getCTP().newCursor() : document.getDocument().getBody().newCursor());
+      try {
+        cursor.toEndToken();
+        XWPFParagraph heading = document.insertNewParagraph(cursor);
+        if (headingStyle != null && headingStyle.getCTP().getPPr()!=null)
+          heading.getCTP().setPPr((org.openxmlformats.schemas.wordprocessingml.x2006.main.CTPPr)headingStyle.getCTP().getPPr().copy());
+        heading.createRun().setText(title);
+        XWPFParagraph paragraph = document.insertNewParagraph(cursor);
+        if (bodyStyle != null && bodyStyle.getCTP().getPPr()!=null)
+          paragraph.getCTP().setPPr((org.openxmlformats.schemas.wordprocessingml.x2006.main.CTPPr)bodyStyle.getCTP().getPPr().copy());
+        String[] lines = content.split("\\R",-1);
+        for (int i=0;i<lines.length;i++) { XWPFRun run=paragraph.createRun(); if(i>0) run.addBreak(); run.setText(lines[i]); }
+      } finally { cursor.dispose(); }
+    }
   }
 
   private String resolveTemplateName(String templateId) throws IOException {

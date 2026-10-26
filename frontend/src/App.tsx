@@ -1,7 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { FileText, FileDown, FileCheck2, RefreshCw, Download, FileType2, ShieldCheck, CircleAlert, CheckCircle2, Plus, RotateCcw, Save, Copy } from 'lucide-react'
 
-type StructureNode = { type:string; text?:string; styleId?:string; editable?:boolean; children?:StructureNode[]; rows?:StructureNode[]; cells?:StructureNode[] };
+type RunStyle = {text?:string;bold?:boolean;italic?:boolean;underline?:string;fontFamily?:string;fontSize?:number;color?:string;businessField?:boolean}
+type StructureNode = { type:string; text?:string; styleId?:string; styleName?:string; editable?:boolean; alignment?:string; indentationLeft?:number; indentationRight?:number; indentationFirstLine?:number; spacingBefore?:number; spacingAfter?:number; keepNext?:boolean; pageBreakBefore?:boolean; runs?:RunStyle[]; children?:StructureNode[]; rows?:StructureNode[]; cells?:StructureNode[] };
 type TemplateStructure = { templateId:string; type:string; children:StructureNode[]; metadata?:{paragraphCount?:number;tableCount?:number} };
 const collectEditableParagraphs = (nodes:StructureNode[]) => { const result:TemplateParagraph[]=[]; let index=0; const walk=(items:StructureNode[])=>items.forEach(node=>{ if(node.type==='paragraph'){ if(node.editable && (node.text||'').trim()) result.push({index,text:node.text||''}); index++; } else if(node.type==='table') (node.rows||[]).forEach(row=>(row.cells||[]).forEach(cell=>walk(cell.children||[]))); else walk(node.children||[]); }); walk(nodes); return result; };
 function renderStructure(nodes:StructureNode[]):ReactNode { return nodes.map((node,i)=>{ if(node.type==='paragraph') return <div className="structureParagraph" key={'p'+i}><span className="structureKind">段落{node.styleId ? ' · '+node.styleId : ''}</span><span>{node.text||'（空段落）'}</span>{node.editable===false&&<em>只读/受保护</em>}</div>; if(node.type==='table') return <div className="structureTable" key={'t'+i}><div className="structureKind">表格 · {(node.rows||[]).length} 行</div><table><tbody>{(node.rows||[]).map((row,ri)=><tr key={ri}>{(row.cells||[]).map((cell,ci)=><td key={ci}>{renderStructure(cell.children||[])}</td>)}</tr>)}</tbody></table></div>; return <div key={node.type+i}>{renderStructure(node.children||node.cells||[])}</div>; }); }
@@ -21,8 +22,22 @@ export default function App(){
    const index=paperParagraphIndex++
    const editable=templateParagraphs.find(p=>p.index===index)
    const text=editable?.text ?? rendered(node.text||'')
-   return <div className={editable?'simPdfParagraph editable':'simPdfParagraph protected'} key={'paper-p-'+index}>
-    {editable?<textarea aria-label={'编辑合同段落 '+(index+1)} value={editable.text} onChange={e=>updateTemplateParagraph(index,e.target.value)} rows={Math.max(1,Math.ceil((editable.text.length||1)/48))} spellCheck={false}/>:<div className="simPdfText">{text||' '}</div>}
+   const firstRun=node.runs?.[0]
+   const paragraphStyle:Record<string,string|number>={}
+   if(node.alignment) paragraphStyle.textAlign=({CENTER:'center',RIGHT:'right',BOTH:'justify',DISTRIBUTE:'justify'} as Record<string,string>)[node.alignment]||'left'
+   if(typeof node.indentationLeft==='number'&&node.indentationLeft>0) paragraphStyle.marginLeft=(node.indentationLeft/20)+'pt'
+   if(typeof node.indentationRight==='number'&&node.indentationRight>0) paragraphStyle.marginRight=(node.indentationRight/20)+'pt'
+   if(typeof node.indentationFirstLine==='number'&&node.indentationFirstLine!==0) paragraphStyle.textIndent=(node.indentationFirstLine/20)+'pt'
+   if(typeof node.spacingBefore==='number'&&node.spacingBefore>0) paragraphStyle.marginTop=(node.spacingBefore/20)+'pt'
+   if(typeof node.spacingAfter==='number'&&node.spacingAfter>0) paragraphStyle.marginBottom=(node.spacingAfter/20)+'pt'
+   if(firstRun?.fontFamily) paragraphStyle.fontFamily=firstRun.fontFamily
+   if(firstRun?.fontSize&&firstRun.fontSize>0) paragraphStyle.fontSize=firstRun.fontSize+'pt'
+   if(firstRun?.bold) paragraphStyle.fontWeight=700
+   if(firstRun?.italic) paragraphStyle.fontStyle='italic'
+   if(firstRun?.color) paragraphStyle.color='#'+firstRun.color
+   const richRuns=(node.runs||[]).map((run,ri)=><span key={ri} style={{fontFamily:run.fontFamily||undefined,fontSize:run.fontSize&&run.fontSize>0?run.fontSize+'pt':undefined,fontWeight:run.bold?700:undefined,fontStyle:run.italic?'italic':undefined,textDecoration:run.underline&&run.underline!=='none'?'underline':undefined,color:run.color?'#'+run.color:undefined}}>{rendered(run.text||'')}</span>)
+   return <div className={['simPdfParagraph',editable?'editable':'protected',node.styleId||''].join(' ')} style={paragraphStyle} key={'paper-p-'+index}>
+    {editable?<div className="simPdfEditableText" role="textbox" aria-label={'编辑合同段落 '+(index+1)} aria-multiline="true" contentEditable suppressContentEditableWarning onBlur={e=>updateTemplateParagraph(index,e.currentTarget.innerText.replace(/\\n$/,''))}>{editable.text===node.text?richRuns:editable.text||' '}</div>:<div className="simPdfText">{richRuns.length?richRuns:(text||' ')}</div>}
     {node.editable===false&&node.text?.trim()&&<span className="simPdfLock">业务字段 / 受保护</span>}
    </div>
   }

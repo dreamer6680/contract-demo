@@ -73,9 +73,11 @@ public final class PlaceholderProtectionService {
   public void assertIntegrity(Path baseline, Path candidate) throws IOException {
     List<String> expected = extractTokens(baseline);
     List<String> actual = extractTokens(candidate);
-    if (!expected.equals(actual)) {
-      Map<String, Integer> missing = counts(expected);
-      counts(actual).forEach((token, count) -> missing.merge(token, -count, Integer::sum));
+    Map<String, Integer> expectedCounts = counts(expected);
+    Map<String, Integer> actualCounts = counts(actual);
+    if (!expectedCounts.equals(actualCounts)) {
+      Map<String, Integer> missing = new LinkedHashMap<>(expectedCounts);
+      actualCounts.forEach((token, count) -> missing.merge(token, -count, Integer::sum));
       throw new IOException("占位符完整性校验失败（缺失或被修改）。差异：" +
           missing.entrySet().stream().filter(e -> e.getValue() != 0).toList());
     }

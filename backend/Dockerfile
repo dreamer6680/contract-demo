@@ -8,6 +8,7 @@ FROM eclipse-temurin:21-jre
 RUN apt-get update && apt-get install -y --no-install-recommends libreoffice-writer fonts-noto-cjk fonts-noto-cjk-extra fonts-liberation fonts-crosextra-carlito fonts-crosextra-caladea fonts-wqy-zenhei fonts-arphic-ukai fonts-arphic-uming && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build /app/target/contract-demo-0.1.0-SNAPSHOT.jar app.jar
+COPY --from=build /app/src/main/resources/templates /app/templates
 RUN mkdir -p /app/storage
 VOLUME ["/app/storage"]
 EXPOSE 8080

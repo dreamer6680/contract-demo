@@ -15,6 +15,20 @@ export default function App(){
  useEffect(()=>{refresh()},[])
  useEffect(()=>{let active=true;setPreviewUrl('');setTemplateParagraphs([]);setTemplateStructure(null);api('/templates/'+templateId+'/structure').then((s:TemplateStructure)=>{if(active){setTemplateStructure(s);setTemplateParagraphs(collectEditableParagraphs(s.children||[]))}}).catch((e:any)=>{if(active){setTemplateStructure(null);setTemplateParagraphs([]);setError(true);setNotice('读取模板结构失败：'+e.message)}});return()=>{active=false}},[templateId])
  const updateClause=(id:string,content:string)=>setClauses(old=>old.map(c=>c.id===id?{...c,content}:c))
+ let paperParagraphIndex=0
+ const renderPaperNodes=(nodes:StructureNode[]):ReactNode=>nodes.map((node,i)=>{
+  if(node.type==='paragraph'){
+   const index=paperParagraphIndex++
+   const editable=templateParagraphs.find(p=>p.index===index)
+   const text=editable?.text ?? rendered(node.text||'')
+   return <div className={editable?'simPdfParagraph editable':'simPdfParagraph protected'} key={'paper-p-'+index}>
+    {editable?<textarea aria-label={'编辑合同段落 '+(index+1)} value={editable.text} onChange={e=>updateTemplateParagraph(index,e.target.value)} rows={Math.max(1,Math.ceil((editable.text.length||1)/48))} spellCheck={false}/>:<div className="simPdfText">{text||' '}</div>}
+    {node.editable===false&&node.text?.trim()&&<span className="simPdfLock">业务字段 / 受保护</span>}
+   </div>
+  }
+  if(node.type==='table') return <div className="simPdfTable" key={'paper-t-'+i}><table><tbody>{(node.rows||[]).map((row,ri)=><tr key={ri}>{(row.cells||[]).map((cell,ci)=><td key={ci}>{renderPaperNodes(cell.children||[])}</td>)}</tr>)}</tbody></table></div>
+  return <div key={'paper-n-'+i}>{renderPaperNodes(node.children||node.cells||[])}</div>
+ })
  const addClauseLine=(id:string)=>setClauses(old=>old.map(c=>c.id===id?{...c,content:(c.content.trimEnd()?c.content.trimEnd()+'\n':'')+'新增条款：请填写条款内容。'}:c))
  const resetClauses=()=>{setClauses(defaultClauses.map(c=>({...c})));setNotice('本次编辑已恢复为默认条款；不会修改公共模板。');setError(false)}
  const rendered=(text:string)=>text.replace(/\{<\$\.([A-Za-z0-9_.]+)>}/g,(_,key:string)=>data[key]??'')
@@ -28,10 +42,18 @@ export default function App(){
     <div className="callout"><b>编辑规则</b><span>业务数据由后端返回，只读展示并自动渲染到合同中；仅固定条款可在当前合同中修改或追加。不会修改 DOCX 模板，也不会影响其他合同。</span></div>
     <div className="formHeader clauseHeader"><div><h2>合同条款编辑</h2><p>修改条款后，点击“更新 PDF 预览”查看实际分页；预览页数与最终生成文件保持一致。</p></div><div className="previewActions"><button className="secondaryBtn" onClick={resetClauses}><RotateCcw size={14}/>恢复默认条款</button><button className="primaryBtn" disabled={previewBusy} onClick={updatePreview}>{previewBusy?<RefreshCw className="spin" size={14}/>:<FileText size={14}/>}更新 PDF 预览</button></div></div>
     <div className="clauseNotice"><ShieldCheck size={17}/><span><b>业务字段只读</b> · 下方合同信息来自后端接口，不提供手动修改入口；固定条款的编辑仅对本次生成生效。</span></div>
-    <div className="editorPreviewLayout">
-    <section className="clauseEditorList"><div className="editorListTitle"><h3>可编辑合同条款</h3><span>按 DOCX 原始段落、表格和单元格结构读取；业务字段暂时只读</span></div>{!templateStructure?<p className="paragraphLoading">正在读取 DOCX 结构…</p>:<><div className="structureSummary">原始结构：{templateStructure.metadata?.paragraphCount??0} 个段落节点 · {templateStructure.metadata?.tableCount??0} 张表格</div><div className="structureTree">{renderStructure(templateStructure.children||[])}</div><div className="structureEditTitle">可编辑正文</div>{templateParagraphs.length===0?<p className="paragraphLoading">当前模板没有识别到可编辑正文。</p>:templateParagraphs.map(p=><div className="clauseEditItem" key={p.index}><label>段落 {p.index+1}</label><textarea value={p.text} onChange={e=>updateTemplateParagraph(p.index,e.target.value)} rows={Math.max(2,Math.ceil(p.text.length/50))} spellCheck={false}/></div>)}</>}</section>
-    <div className="pdfPreviewWorkspace"><div className="pdfPreviewToolbar"><span><FileText size={15}/>真实 DOCX → PDF 分页预览</span><span>按 PDF 原始分页显示，不使用 CSS 模拟版式</span></div>{previewUrl?<iframe title="合同 PDF 完整分页预览" src={previewUrl} className="pdfPreviewFrame"/>:<div className="previewEmpty"><FileText size={30}/><b>尚未生成预览</b><span>先编辑条款，再点击“更新 PDF 预览”。系统会展示该模板转换后的完整 PDF 页面。</span><button className="primaryBtn" disabled={previewBusy} onClick={updatePreview}>{previewBusy?<RefreshCw className="spin" size={14}/>:<FileText size={14}/>}生成完整 PDF 预览</button></div>}</div>
-    </div>
+    <section className="simPdfWorkspace">
+     <div className="simPdfToolbar"><div><FileText size={16}/><b>合同页面 · 直接编辑模式</b><span>前端版式模拟</span></div><div className="simPdfToolbarHint">点击正文即可编辑 · 业务字段受保护</div></div>
+     <div className="simPdfCanvas">
+      {!templateStructure?<p className="paragraphLoading">正在读取 DOCX 结构…</p>:<article className="simPdfPage">
+       <div className="simPdfPageHead"><span>合同模板预览</span><span>编辑模式 · 非最终 PDF</span></div>
+       <h2 className="simPdfTitle">煤炭买卖合同</h2>
+       <div className="simPdfContent">{renderPaperNodes(templateStructure.children||[])}</div>
+       <div className="simPdfPageFoot">前端模拟页面 · 最终分页和排版以生成的 PDF 为准</div>
+      </article>}
+     </div>
+     <div className="simPdfFooter"><span>已识别 {templateStructure?.metadata?.paragraphCount??0} 个段落、{templateStructure?.metadata?.tableCount??0} 张表格</span><span>编辑内容会同步用于 PDF 预览与合同生成</span><button className="secondaryBtn" disabled={previewBusy} onClick={updatePreview}>{previewBusy?<RefreshCw className="spin" size={14}/>:<FileText size={14}/>}生成真实 PDF 预览</button></div>
+    </section>
     <section className="generatePanel"><div><h3>生成合同文件</h3><p>系统将使用当前选中的模板，应用业务字段和本次条款修改，生成 DOCX 并转换为 PDF。</p><div className="pipeline"><span>填写业务数据</span><i>→</i><span>应用本次条款</span><i>→</i><span>替换占位符</span><i>→</i><span>转换 PDF</span></div></div><button className="primaryBtn" disabled={busy||fields.length===0} onClick={generate}>{busy?<RefreshCw className="spin" size={17}/>:<Download size={17}/>}{busy?'正在生成…':'生成 PDF 合同'}</button></section>
    </>:<section className="recordsCard"><div className="recordsHead"><div><h2>生成文件</h2><p>每条记录对应一次独立生成，包含当次业务数据和条款快照。</p></div><span className="fieldCount">{docs.length} 条记录</span></div>{docs.length===0?<div className="emptyState"><FileText size={28}/><b>暂无生成记录</b><span>填写合同字段并生成文件后，记录会显示在这里。</span></div>:docs.map(d=><div className="docRow" key={d.id}><div className="pdfIcon"><FileText size={21}/></div><div className="docDetails"><b>{d.templateName}</b><span>{d.pdfFileName}</span><small>{d.createdAt}</small></div><div className="docActions"><a href={d.downloadUrl}><Download size={15}/>下载 PDF</a><a href={d.docxUrl}><FileDown size={15}/>下载 DOCX</a></div></div>)}</section>}
    <footer><span>合同模板工作台 · Demo</span><span>React · Spring Boot · Apache POI · LibreOffice · MySQL</span></footer>

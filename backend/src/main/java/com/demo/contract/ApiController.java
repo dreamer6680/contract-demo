@@ -84,7 +84,6 @@ public class ApiController {
     // renderDocument(), because it replaces placeholders with the current data.
     try (InputStream in = getTemplateStream(sourceId);
          XWPFDocument document = new XWPFDocument(in)) {
-      insertNewSections(document, body.get("newSections"));
       Object rawParagraphs = body.get("paragraphEdits");
       if (rawParagraphs instanceof List<?> edits) {
         List<XWPFParagraph> paragraphs = documentBodyParagraphs(document);
@@ -110,6 +109,8 @@ public class ApiController {
           }
         }
       }
+      // Apply insertions after indexed edits to avoid shifting source paragraph indexes.
+      insertNewSections(document, body.get("newSections"));
       try (OutputStream out = Files.newOutputStream(target)) { document.write(out); }
       Files.writeString(templatesDir.resolve(id + ".name"), name);
       return Map.of("id", id, "name", name, "isDefault", false,
@@ -455,6 +456,8 @@ public class ApiController {
         // Backward compatibility for older clients that still submit clause edits.
         applyClauseEdits(document, defaultClauses(), clauseEdits, data);
       }
+      // Insert sections after applying original paragraph indexes, so user edits keep targeting the source DOCX.
+      insertNewSections(document, body.get("newSections"));
       replaceInDocument(document, data);
       try (OutputStream out = Files.newOutputStream(docx)) { document.write(out); }
     }

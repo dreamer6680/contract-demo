@@ -97,7 +97,7 @@ public class OnlyOfficeController {
       if (bytes == null || bytes.length == 0) return Map.of("error", 1);
       Path candidate = Files.createTempFile(storage.resolve("onlyoffice"), "callback-", ".docx");
       try {
-        Files.write(candidate, bytes, StandardOpenOption.TRUNCATE_EXISTING);
+        Files.write(candidate, bytes, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
         // Compare against the immutable source template, not the previously saved copy.
         placeholderProtection.assertIntegrity(resolveTemplate(templateId), candidate);
         if (placeholderProtection.hasProtectedControls(candidate)) {

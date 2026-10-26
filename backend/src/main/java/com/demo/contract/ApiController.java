@@ -78,6 +78,21 @@ public class ApiController {
     return Map.of("id",id,"name",name,"isDefault",false,"message","新模板已保存，可在模板列表中选择；公共模板未被修改。");
   }
 
+
+  @GetMapping("/templates/{id}/paragraphs")
+  public List<Map<String,Object>> templateParagraphs(@PathVariable String id) throws IOException {
+    List<Map<String,Object>> result = new ArrayList<>();
+    try (InputStream in = getTemplateStream(id); XWPFDocument document = new XWPFDocument(in)) {
+      int index = 0;
+      for (XWPFParagraph paragraph : document.getParagraphs()) {
+        String value = paragraphText(paragraph);
+        if (!value.isBlank()) result.add(Map.of("index", index, "text", value));
+        index++;
+      }
+    }
+    return result;
+  }
+
   @GetMapping("/contract-fields") public List<Map<String,Object>> contractFields() { return fields(); }
 
 
@@ -221,7 +236,19 @@ public class ApiController {
     }
     String templateId = String.valueOf(body.getOrDefault("templateId", "default"));
     try (InputStream in = getTemplateStream(templateId); XWPFDocument document = new XWPFDocument(in)) {
-      applyClauseEdits(document, defaultClauses(), clauseEdits, data);
+      if (!"default".equals(templateId)) {
+        Object rawParagraphs = body.get("paragraphEdits");
+        if (rawParagraphs instanceof List<?> edits) {
+          List<XWPFParagraph> paragraphs = document.getParagraphs();
+          for (Object item : edits) if (item instanceof Map<?,?> edit && edit.get("index") != null && edit.get("text") != null) {
+            int index;
+            try { index = Integer.parseInt(String.valueOf(edit.get("index"))); } catch (NumberFormatException ex) { continue; }
+            if (index >= 0 && index < paragraphs.size()) setParagraphLines(paragraphs.get(index), String.valueOf(edit.get("text")));
+          }
+        }
+      } else {
+        applyClauseEdits(document, defaultClauses(), clauseEdits, data);
+      }
       replaceInDocument(document, data);
       try (OutputStream out = Files.newOutputStream(docx)) { document.write(out); }
     }

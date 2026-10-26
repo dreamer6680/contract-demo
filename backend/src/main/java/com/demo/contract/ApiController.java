@@ -424,7 +424,7 @@ public class ApiController {
       // a currently displayed business value into the reusable template.
       String editedText = edits.get(id);
       StringBuilder originalClauseText = new StringBuilder();
-      for (XWPFParagraph target : targets) originalClauseText.append(paragraphText(target)).append("\\n");
+      for (XWPFParagraph target : targets) originalClauseText.append(paragraphText(target)).append("\n");
       if (!containsAllPlaceholders(originalClauseText.toString(), editedText)) continue;
       // Keep placeholder syntax verbatim in the template version.
       setParagraphLines(targets.get(0), editedText);
@@ -443,7 +443,7 @@ public class ApiController {
    * present in the source text. This is used only when saving reusable templates.
    */
   private boolean containsAllPlaceholders(String original, String edited) {
-    Matcher matcher = Pattern.compile("\\\\{<\\\\$\\\\.[A-Za-z0-9_.]+>\\\\}").matcher(original == null ? "" : original);
+    Matcher matcher = Pattern.compile("\\{<\\$\\.[A-Za-z0-9_.]+>}").matcher(original == null ? "" : original);
     String value = edited == null ? "" : edited;
     while (matcher.find()) {
       if (!value.contains(matcher.group())) return false;

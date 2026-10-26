@@ -51,3 +51,14 @@ React + TypeScript / Spring Boot 3.4 / Apache POI / LibreOffice headless / MySQL
 ## ONLYOFFICE 占位符锁定验证（开发分支）
 
 `dev` 分支新增了可选的 ONLYOFFICE Docs 服务配置，默认 `docker compose up` 不会启动它。需要验证时，先设置 `ONLYOFFICE_JWT_SECRET`，再执行 `docker compose --profile onlyoffice up -d onlyoffice`。详细步骤、验收用例和未完成事项见 [`docs/onlyoffice-placeholder-poc.md`](docs/onlyoffice-placeholder-poc.md)。
+
+### ONLYOFFICE 原生编辑器验证（dev 分支）
+
+在项目根目录执行：
+
+```bash
+export ONLYOFFICE_JWT_SECRET='请替换为强随机密钥'
+docker compose --profile onlyoffice up --build -d
+```
+
+打开 http://localhost:5173，在左侧选择“ONLYOFFICE 编辑验证”。编辑器配置由 Java 后端签发 JWT；文档保存回调会写入 `storage/onlyoffice/`，重新打开时会读取保存副本。该页面目前只是基础编辑/保存链路验证，**尚未锁定业务占位符，也未完成保存后的占位符完整性校验**，不要用它修改正式模板。

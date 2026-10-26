@@ -84,43 +84,31 @@ public class ApiController {
     // renderDocument(), because it replaces placeholders with the current data.
     try (InputStream in = getTemplateStream(sourceId);
          XWPFDocument document = new XWPFDocument(in)) {
-      if (!"default".equals(sourceId)) {
-        Object rawParagraphs = body.get("paragraphEdits");
-        if (rawParagraphs instanceof List<?> edits) {
-          List<XWPFParagraph> paragraphs = document.getParagraphs();
-          for (Object item : edits) {
-            if (item instanceof Map<?,?> edit && edit.get("index") != null && edit.get("text") != null) {
-              int index;
-              try { index = Integer.parseInt(String.valueOf(edit.get("index"))); }
-              catch (NumberFormatException ex) { continue; }
-              if (index >= 0 && index < paragraphs.size()) {
-                XWPFParagraph paragraph = paragraphs.get(index);
-                String originalText = paragraphText(paragraph);
-                String editedText = String.valueOf(edit.get("text"));
-                // The UI sends every paragraph, not only changed ones. Do not rewrite
-                // unchanged paragraphs: doing so flattens runs and can destroy DOCX
-                // formatting or field/token boundaries.
-                if (Objects.equals(originalText, editedText)) continue;
-                // A saved template must retain its original business placeholders.
-                // If an edit accidentally replaces one with a displayed business value,
-                // reject that paragraph edit rather than persisting the value.
-                if (!containsAllPlaceholders(originalText, editedText)) continue;
-                setParagraphLines(paragraph, editedText);
-              }
+      Object rawParagraphs = body.get("paragraphEdits");
+      Object rawParagraphs = body.get("paragraphEdits");
+      if (rawParagraphs instanceof List<?> edits) {
+        List<XWPFParagraph> paragraphs = document.getParagraphs();
+        for (Object item : edits) {
+          if (item instanceof Map<?,?> edit && edit.get("index") != null && edit.get("text") != null) {
+            int index;
+            try { index = Integer.parseInt(String.valueOf(edit.get("index"))); }
+            catch (NumberFormatException ex) { continue; }
+            if (index >= 0 && index < paragraphs.size()) {
+              XWPFParagraph paragraph = paragraphs.get(index);
+              String originalText = paragraphText(paragraph);
+              String editedText = String.valueOf(edit.get("text"));
+              // The UI sends every paragraph, not only changed ones. Do not rewrite
+              // unchanged paragraphs: doing so flattens runs and can destroy DOCX
+              // formatting or field/token boundaries.
+              if (Objects.equals(originalText, editedText)) continue;
+              // A saved template must retain its original business placeholders.
+              // If an edit accidentally replaces one with a displayed business value,
+              // reject that paragraph edit rather than persisting the value.
+              if (containsBusinessPlaceholder(originalText) || !containsAllPlaceholders(originalText, editedText)) continue;
+              setParagraphLines(paragraph, editedText);
             }
           }
         }
-      } else {
-        Map<String,String> clauseEdits = new LinkedHashMap<>();
-        Object rawClauses = body.get("clauses");
-        if (rawClauses instanceof List<?> list) {
-          for (Object item : list) {
-            if (item instanceof Map<?,?> clause && clause.get("id") != null && clause.get("content") != null) {
-              clauseEdits.put(String.valueOf(clause.get("id")), String.valueOf(clause.get("content")));
-            }
-          }
-        }
-        applyTemplateClauseEdits(document, defaultClauses(), clauseEdits);
       }
       try (OutputStream out = Files.newOutputStream(target)) { document.write(out); }
       Files.writeString(templatesDir.resolve(id + ".name"), name);

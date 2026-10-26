@@ -12,7 +12,7 @@ export default function App(){
  const updateClause=(id:string,content:string)=>setClauses(old=>old.map(c=>c.id===id?{...c,content}:c))
  const addClauseLine=(id:string)=>setClauses(old=>old.map(c=>c.id===id?{...c,content:(c.content.trimEnd()?c.content.trimEnd()+'\n':'')+'新增条款：请填写条款内容。'}:c))
  const resetClauses=()=>{setClauses(defaultClauses.map(c=>({...c})));setNotice('本次编辑已恢复为默认条款；不会修改公共模板。');setError(false)}
- const rendered=(text:string)=>text.replace(/\\{<\\$\\.([A-Za-z0-9_.]+)>}/g,(_,key:string)=>data[key]??'')
+ const rendered=(text:string)=>text.replace(/\{<\$\.([A-Za-z0-9_.]+)>}/g,(_,key:string)=>data[key]??'')
  const generate=async()=>{setBusy(true);setNotice('');try{const r=await api('/documents',{method:'POST',body:JSON.stringify({data,clauses:clauses.map(({id,content})=>({id,content}))})});setNotice(r.message);setError(false);const d=await api('/documents');setDocs(d);window.open(r.downloadUrl,'_blank','noopener,noreferrer')}catch(e:any){setError(true);setNotice(e.message)}finally{setBusy(false)}}
  return <div className="appShell">
   <aside className="sidebar"><div className="brand"><div className="brandIcon"><FileText size={22}/></div><div><b>合同模板工作台</b><small>DOCX → PDF WORKFLOW</small></div></div><div className="sideLabel">工作空间</div><button className={tab==='form'?'navItem active':'navItem'} onClick={()=>setTab('form')}><FileType2 size={17}/>合同填写与编辑</button><button className={tab==='records'?'navItem active':'navItem'} onClick={()=>setTab('records')}><FileCheck2 size={17}/>生成记录 <span>{docs.length}</span></button><div className="sideBottom"><div className="safeTag"><ShieldCheck size={16}/>本次编辑独立生效</div><p>固定条款仅用于本次生成，不会修改公共 DOCX 模板。每次重新进入页面时加载默认条款。</p></div></aside>

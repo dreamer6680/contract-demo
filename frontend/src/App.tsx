@@ -1,17 +1,14 @@
-import { useEffect, useMemo, useState } from 'react'
-import { FileText, FileDown, FileCheck2, RefreshCw, Download, FileType2, ShieldCheck, CircleAlert, CheckCircle2, Plus, RotateCcw, PencilLine } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { FileText, FileDown, FileCheck2, RefreshCw, Download, FileType2, ShieldCheck, CircleAlert, CheckCircle2, Plus, RotateCcw } from 'lucide-react'
 
 type Field = { key: string; label: string; defaultValue: string }
 type Clause = { id: string; title: string; description: string; content: string; anchors?: string[] }
 type Doc = { id:number; templateName:string; pdfFileName:string; docxFileName:string; createdAt:string; downloadUrl:string; docxUrl:string }
 const api = async (url:string, init?:RequestInit) => { const r=await fetch('/api'+url,{headers:{'Content-Type':'application/json'},...init}); const j=await r.json().catch(()=>({error:'请求失败'})); if(!r.ok) throw new Error(j.message||j.error||'请求失败'); return j }
-const groupLabel = (key:string) => key.startsWith('seller.') ? '卖方信息' : key.startsWith('buyer.') ? '买方信息' : key.startsWith('product.') ? '煤炭与价格' : '合同与交付'
 export default function App(){
  const [fields,setFields]=useState<Field[]>([]), [data,setData]=useState<Record<string,string>>({}), [docs,setDocs]=useState<Doc[]>([]), [clauses,setClauses]=useState<Clause[]>([]), [defaultClauses,setDefaultClauses]=useState<Clause[]>([]), [busy,setBusy]=useState(false), [notice,setNotice]=useState(''), [error,setError]=useState(false), [tab,setTab]=useState<'form'|'records'>('form')
  const refresh=async()=>{try{const [f,d,c]=await Promise.all([api('/contract-fields'),api('/documents'),api('/contract-clauses')]);setFields(f);setDocs(d);setDefaultClauses(c);setClauses(old=>old.length?old:c);setData(Object.fromEntries(f.map((x:Field)=>[x.key,String(x.defaultValue ?? '')])))}catch(e:any){setError(true);setNotice(e.message)}}
  useEffect(()=>{refresh()},[])
- const groups=useMemo(()=>{const m=new Map<string,Field[]>();fields.forEach(f=>{const g=groupLabel(f.key);m.set(g,[...(m.get(g)||[]),f])});return [...m.entries()]},[fields])
- const setField=(k:string,v:string)=>setData(d=>({...d,[k]:v}))
  const updateClause=(id:string,content:string)=>setClauses(old=>old.map(c=>c.id===id?{...c,content}:c))
  const addClauseLine=(id:string)=>setClauses(old=>old.map(c=>c.id===id?{...c,content:(c.content.trimEnd()?c.content.trimEnd()+'\n':'')+'新增条款：请填写条款内容。'}:c))
  const resetClauses=()=>{setClauses(defaultClauses.map(c=>({...c})));setNotice('本次编辑已恢复为默认条款；不会修改公共模板。');setError(false)}

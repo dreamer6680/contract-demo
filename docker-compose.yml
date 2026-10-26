@@ -37,6 +37,10 @@ services:
       SPRING_DATASOURCE_USERNAME: contract
       SPRING_DATASOURCE_PASSWORD: contractpass
       APP_STORAGE_DIR: /app/storage
+      ONLYOFFICE_JWT_SECRET: ${ONLYOFFICE_JWT_SECRET:-local-onlyoffice-dev-secret-change-me}
+      onlyoffice.document-server-url: http://localhost:8081
+      onlyoffice.document-url-base: http://host.docker.internal:8080
+      onlyoffice.callback-url-base: http://backend:8080
     ports: ["8080:8080"]
     volumes:
       - ./storage:/app/storage

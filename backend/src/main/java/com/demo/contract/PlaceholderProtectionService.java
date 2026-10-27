@@ -17,12 +17,44 @@ import java.util.zip.*;
  */
 public final class PlaceholderProtectionService {
   private static final String W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
-  private static final Pattern TOKEN = Pattern.compile("\\{<\\$\\.[^}]+>}");
+  private static final Pattern TOKEN = Pattern.compile("\\{<\\$\\.([^}]+)>}");
   private static final String DOCUMENT_XML = "word/document.xml";
 
   public void createProtectedCopy(Path source, Path target) throws IOException {
+    writeTransformed(source, target, this::protectDocumentXml);
+  }
+
+  /**
+   * Create an editing copy in which every placeholder is replaced by the current
+   * business value. The token is kept in the content-control tag, so the value can
+   * be replaced by the original placeholder again when the editor saves.
+   */
+  public void createDisplayCopy(Path source, Path target, Map<String, String> values) throws IOException {
+    writeTransformed(source, target, xml -> protectDocumentXml(xml, values == null ? Map.of() : values));
+  }
+
+  /** Replace every placeholder content control with its original placeholder token. */
+  public void restorePlaceholders(Path source, Path target) throws IOException {
+    writeTransformed(source, target, this::restoreDocumentXml);
+  }
+
+  public boolean hasPlaceholderControls(Path path) throws IOException {
+    Document doc = readDocument(path);
+    NodeList tags = doc.getElementsByTagNameNS(W, "tag");
+    for (int i = 0; i < tags.getLength(); i++) {
+      String value = ((Element) tags.item(i)).getAttributeNS(W, "val");
+      if (value.startsWith("placeholder:") || value.startsWith("protected:")) return true;
+    }
+    NodeList aliases = doc.getElementsByTagNameNS(W, "alias");
+    for (int i = 0; i < aliases.getLength(); i++) {
+      if (TOKEN.matcher(((Element) aliases.item(i)).getAttributeNS(W, "val")).find()) return true;
+    }
+    return false;
+  }
+
+  private void writeTransformed(Path source, Path target, DocumentTransform transform) throws IOException {
     Files.createDirectories(target.toAbsolutePath().getParent());
-    Path temp = Files.createTempFile(target.toAbsolutePath().getParent(), "protected-", ".docx");
+    Path temp = Files.createTempFile(target.toAbsolutePath().getParent(), "docx-", ".docx");
     try (ZipInputStream in = new ZipInputStream(Files.newInputStream(source));
          ZipOutputStream out = new ZipOutputStream(Files.newOutputStream(temp))) {
       ZipEntry entry;
@@ -30,7 +62,7 @@ public final class PlaceholderProtectionService {
       while ((entry = in.getNextEntry()) != null) {
         byte[] bytes = in.readAllBytes();
         if (DOCUMENT_XML.equals(entry.getName())) {
-          bytes = protectDocumentXml(bytes);
+          bytes = transform.apply(bytes);
           foundDocument = true;
         }
         ZipEntry copy = new ZipEntry(entry.getName());
@@ -43,13 +75,27 @@ public final class PlaceholderProtectionService {
     } catch (Exception e) {
       Files.deleteIfExists(temp);
       if (e instanceof IOException io) throw io;
-      throw new IOException("无法保护合同占位符：" + e.getMessage(), e);
+      throw new IOException("处理合同 DOCX 失败：" + e.getMessage(), e);
     }
     try {
       Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
     } catch (AtomicMoveNotSupportedException e) {
       Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
     }
+  }
+
+  @FunctionalInterface
+  private interface DocumentTransform {
+    byte[] apply(byte[] xml) throws Exception;
+  }
+
+  private Document readDocument(Path path) throws IOException {
+    try (ZipFile zip = new ZipFile(path.toFile())) {
+      ZipEntry entry = zip.getEntry(DOCUMENT_XML);
+      if (entry == null) throw new IOException("DOCX 缺少 word/document.xml: " + path.getFileName());
+      try (InputStream in = zip.getInputStream(entry)) { return parse(in.readAllBytes()); }
+    } catch (IOException e) { throw e; }
+    catch (Exception e) { throw new IOException("无法读取 DOCX：" + path.getFileName(), e); }
   }
 
 
@@ -84,28 +130,39 @@ public final class PlaceholderProtectionService {
   }
 
   private byte[] protectDocumentXml(byte[] xml) throws Exception {
+    return protectDocumentXml(xml, null);
+  }
+
+  private byte[] protectDocumentXml(byte[] xml, Map<String, String> values) throws Exception {
     Document doc = parse(xml);
     NodeList paragraphs = doc.getElementsByTagNameNS(W, "p");
+    int[] nextSdtId = {1};
     for (int i = paragraphs.getLength() - 1; i >= 0; i--) {
       Element paragraph = (Element) paragraphs.item(i);
-      protectParagraph(paragraph, doc);
+      protectParagraph(paragraph, doc, nextSdtId, values);
     }
     return serialize(doc);
   }
 
-  private void protectParagraph(Element paragraph, Document doc) throws IOException {
-    List<Element> textNodes = new ArrayList<>();
-    collectTextNodes(paragraph, textNodes);
-    StringBuilder full = new StringBuilder();
-    for (Element t : textNodes) full.append(t.getTextContent());
+  private void protectParagraph(Element paragraph, Document doc, int[] nextSdtId, Map<String, String> values) throws IOException {
+    List<TokenSpan> tokens = findTokens(paragraph);
+    if (tokens.isEmpty()) return;
 
-    Matcher matcher = TOKEN.matcher(full);
-    List<TokenSpan> tokens = new ArrayList<>();
-    while (matcher.find()) tokens.add(new TokenSpan(matcher.group(), matcher.start(), matcher.end()));
-    // Work from right to left so replacing a later placeholder does not invalidate offsets
-    // or DOM nodes that belong to an earlier placeholder.
+    // Replace from right to left. A replacement preserves the paragraph's concatenated
+    // text exactly, so the offsets found in the original text remain valid; the w:t/w:r
+    // nodes, however, are split and must be re-read for every token.
     tokens.sort(Comparator.comparingInt(TokenSpan::start).reversed());
     for (TokenSpan token : tokens) {
+      List<Element> textNodes = new ArrayList<>();
+      collectTextNodes(paragraph, textNodes);
+      StringBuilder fullBuilder = new StringBuilder();
+      for (Element t : textNodes) fullBuilder.append(t.getTextContent());
+      String full = fullBuilder.toString();
+      if (token.start() < 0 || token.end() > full.length()
+          || !full.substring(token.start(), token.end()).equals(token.value())) {
+        throw new IOException("占位符位置已变化，无法安全锁定：" + token.value());
+      }
+
       int position = 0;
       Element startText = null;
       Element endText = null;
@@ -128,30 +185,12 @@ public final class PlaceholderProtectionService {
         throw new IOException("未能定位占位符：" + token.value());
       }
 
-      Element startRun = directRun(startText, paragraph, token.value());
-      Element endRun = directRun(endText, paragraph, token.value());
-      String startValue = startText.getTextContent();
-      String endValue = endText.getTextContent();
-      Matcher inStart = TOKEN.matcher(startValue);
-      int countInStart = 0;
-      while (inStart.find()) countInStart++;
-      if (countInStart > 1) {
-        throw new IOException("同一 Word 文本节点包含多个占位符，无法安全锁定，请先在模板中拆分占位符：" + startValue);
-      }
-      if (startText == endText && countInStart != 1) {
-        throw new IOException("占位符所在文本节点结构异常，无法安全锁定：" + token.value());
-      }
-
-      // The text may live inside a run-level container such as a hyperlink or
-      // an existing content control. Only rewrite runs that share the same parent;
-      // never move runs across WordprocessingML containers.
+      Element startRun = directRun(startText, token.value());
+      Element endRun = directRun(endText, token.value());
       Node parent = startRun.getParentNode();
       if (!(parent instanceof Element) || endRun.getParentNode() != parent) {
         throw new IOException("占位符跨越多个 Word 结构容器，无法安全锁定：" + token.value());
       }
-      String before = startValue.substring(0, startOffset);
-      String after = endValue.substring(endOffset);
-
       if (startRun != endRun) {
         Node check = startRun.getNextSibling();
         while (check != null && check != endRun) {
@@ -167,37 +206,27 @@ public final class PlaceholderProtectionService {
         }
       }
 
-      if (!before.isEmpty()) parent.insertBefore(makeRun(doc, startRun, before), startRun);
+      assertSimpleTextRun(startRun, token.value());
+      if (endRun != startRun) assertSimpleTextRun(endRun, token.value());
 
-      Element sdt = doc.createElementNS(W, "w:sdt");
-      Element pr = doc.createElementNS(W, "w:sdtPr");
-      Element alias = doc.createElementNS(W, "w:alias");
-      alias.setAttributeNS(W, "w:val", "Protected placeholder");
-      Element tag = doc.createElementNS(W, "w:tag");
-      tag.setAttributeNS(W, "w:val", "protected:" + token.value());
-      Element lock = doc.createElementNS(W, "w:lock");
-      lock.setAttributeNS(W, "w:val", "sdtContentLocked");
-      pr.appendChild(alias);
-      pr.appendChild(lock);
-      pr.appendChild(tag);
-      Element content = doc.createElementNS(W, "w:sdtContent");
+      String before = startText.getTextContent().substring(0, startOffset);
+      String after = endText.getTextContent().substring(endOffset);
 
-      if (startText == endText) {
-        content.appendChild(makeRun(doc, startRun, token.value()));
-      } else {
-        // Preserve text before/after the placeholder and retain the run formatting for each
-        // fragment inside the protected content control.
-        content.appendChild(makeRun(doc, startRun, startValue.substring(startOffset)));
+      // Remove runs that are wholly inside the placeholder. Their text is part of the
+      // token and must not leak into the surrounding text.
+      if (startRun != endRun) {
         Node current = startRun.getNextSibling();
         while (current != null && current != endRun) {
           Node next = current.getNextSibling();
           parent.removeChild(current);
           current = next;
         }
-        content.appendChild(makeRun(doc, endRun, endValue.substring(0, endOffset)));
       }
-      sdt.appendChild(pr);
-      sdt.appendChild(content);
+
+      String content = values == null ? token.value() : displayValue(values, token.value());
+      Element tokenRun = makeRun(doc, startRun, content);
+      Element sdt = createSdt(doc, tokenRun, token.value(), nextSdtId[0]++);
+      if (!before.isEmpty()) parent.insertBefore(makeRun(doc, startRun, before), startRun);
       parent.insertBefore(sdt, startRun);
       parent.removeChild(startRun);
       if (endRun != startRun && endRun.getParentNode() == parent) parent.removeChild(endRun);
@@ -205,7 +234,18 @@ public final class PlaceholderProtectionService {
     }
   }
 
-  private Element directRun(Element text, Element paragraph, String token) throws IOException {
+  private List<TokenSpan> findTokens(Element paragraph) {
+    List<Element> textNodes = new ArrayList<>();
+    collectTextNodes(paragraph, textNodes);
+    StringBuilder full = new StringBuilder();
+    for (Element t : textNodes) full.append(t.getTextContent());
+    Matcher matcher = TOKEN.matcher(full);
+    List<TokenSpan> tokens = new ArrayList<>();
+    while (matcher.find()) tokens.add(new TokenSpan(matcher.group(), matcher.start(), matcher.end()));
+    return tokens;
+  }
+
+  private Element directRun(Element text, String token) throws IOException {
     Node parent = text.getParentNode();
     if (!(parent instanceof Element run)
         || !"r".equals(run.getLocalName())
@@ -219,10 +259,55 @@ public final class PlaceholderProtectionService {
     return run;
   }
 
+  /** makeRun clones a run, so reject runs whose other children would be duplicated. */
+  private void assertSimpleTextRun(Element run, String token) throws IOException {
+    for (Node child = run.getFirstChild(); child != null; child = child.getNextSibling()) {
+      if (child.getNodeType() == Node.TEXT_NODE || child.getNodeType() == Node.COMMENT_NODE) continue;
+      if (child instanceof Element element
+          && W.equals(element.getNamespaceURI())
+          && ("rPr".equals(element.getLocalName())
+              || "t".equals(element.getLocalName())
+              || "lastRenderedPageBreak".equals(element.getLocalName()))) {
+        continue;
+      }
+      throw new IOException("占位符所在 Word Run 包含非文本结构，无法安全锁定：" + token);
+    }
+  }
+
+  private Element createSdt(Document doc, Element run, String token, int id) {
+    Element sdt = doc.createElementNS(W, "w:sdt");
+    Element pr = doc.createElementNS(W, "w:sdtPr");
+    Element alias = doc.createElementNS(W, "w:alias");
+    alias.setAttributeNS(W, "w:val", token);
+    Element tag = doc.createElementNS(W, "w:tag");
+    tag.setAttributeNS(W, "w:val", "placeholder:" + token);
+    Element idElement = doc.createElementNS(W, "w:id");
+    idElement.setAttributeNS(W, "w:val", String.valueOf(id));
+    Element lock = doc.createElementNS(W, "w:lock");
+    lock.setAttributeNS(W, "w:val", "sdtContentLocked");
+    // CT_SdtPr is an ordered sequence: alias, tag, id, lock. Keep this order for Word.
+    pr.appendChild(alias);
+    pr.appendChild(tag);
+    pr.appendChild(idElement);
+    pr.appendChild(lock);
+    Element content = doc.createElementNS(W, "w:sdtContent");
+    content.appendChild(run);
+    sdt.appendChild(pr);
+    sdt.appendChild(content);
+    return sdt;
+  }
+
   private record TokenSpan(String value, int start, int end) {}
 
   private Element makeRun(Document doc, Element originalRun, String text) {
     Element run = (Element) originalRun.cloneNode(true);
+    // Word's cached pagination hint is not text and must not be duplicated into
+    // every fragment created when a run is split.
+    NodeList pageBreaks = run.getElementsByTagNameNS(W, "lastRenderedPageBreak");
+    for (int i = pageBreaks.getLength() - 1; i >= 0; i--) {
+      Node pageBreak = pageBreaks.item(i);
+      if (pageBreak.getParentNode() != null) pageBreak.getParentNode().removeChild(pageBreak);
+    }
     NodeList texts = run.getElementsByTagNameNS(W, "t");
     Element first = (Element) texts.item(0);
     first.setTextContent(text);
@@ -231,20 +316,121 @@ public final class PlaceholderProtectionService {
     return run;
   }
 
-  private Element makeSdt(Document doc, Element originalRun, String token) {
-    Element sdt = doc.createElementNS(W, "w:sdt");
-    Element pr = doc.createElementNS(W, "w:sdtPr");
-    Element alias = doc.createElementNS(W, "w:alias");
-    alias.setAttributeNS(W, "w:val", "Protected placeholder");
-    Element tag = doc.createElementNS(W, "w:tag");
-    tag.setAttributeNS(W, "w:val", "protected:" + token);
-    Element lock = doc.createElementNS(W, "w:lock");
-    lock.setAttributeNS(W, "w:val", "sdtContentLocked");
-    pr.appendChild(alias); pr.appendChild(lock); pr.appendChild(tag);
-    Element content = doc.createElementNS(W, "w:sdtContent");
-    content.appendChild(makeRun(doc, originalRun, token));
-    sdt.appendChild(pr); sdt.appendChild(content);
-    return sdt;
+  private String displayValue(Map<String, String> values, String token) {
+    String key = tokenKey(token);
+    String value = key.isEmpty() ? "" : values.getOrDefault(key, "");
+    if (value == null) return "";
+    // A content control's w:t is a single line; keep the editor stable for multi-line data.
+    return value.replaceAll("[\\r\\n\\t]", " ");
+  }
+
+  private String tokenKey(String token) {
+    Matcher matcher = TOKEN.matcher(token == null ? "" : token);
+    return matcher.matches() ? matcher.group(1) : "";
+  }
+
+  private byte[] restoreDocumentXml(byte[] xml) throws Exception {
+    Document doc = parse(xml);
+    NodeList sdts = doc.getElementsByTagNameNS(W, "sdt");
+    for (int i = sdts.getLength() - 1; i >= 0; i--) {
+      Element sdt = (Element) sdts.item(i);
+      String token = placeholderToken(sdt);
+      if (token == null) continue;
+      Node parent = sdt.getParentNode();
+      if (!(parent instanceof Element parentElement) || !isInlineContainer(parentElement)) {
+        throw new IOException("字段内容控件不在段落内，无法还原占位符：" + token);
+      }
+      parent.replaceChild(tokenRun(doc, sdt, token), sdt);
+    }
+    return serialize(doc);
+  }
+
+  private String placeholderToken(Element sdt) {
+    Element pr = firstChildElement(sdt, "sdtPr");
+    if (pr != null) {
+      Element tag = firstChildElement(pr, "tag");
+      if (tag != null) {
+        String token = tokenFromTag(tag.getAttributeNS(W, "val"));
+        if (token != null) return token;
+      }
+      Element alias = firstChildElement(pr, "alias");
+      if (alias != null) {
+        String token = firstToken(alias.getAttributeNS(W, "val"));
+        if (token != null) return token;
+      }
+    }
+    // Legacy protected copies stored the token as the content of the control.
+    NodeList texts = sdt.getElementsByTagNameNS(W, "t");
+    StringBuilder content = new StringBuilder();
+    for (int i = 0; i < texts.getLength(); i++) content.append(texts.item(i).getTextContent());
+    Matcher matcher = TOKEN.matcher(content.toString());
+    String found = null;
+    while (matcher.find()) {
+      if (found != null) return null;
+      found = matcher.group();
+    }
+    return found;
+  }
+
+  private String tokenFromTag(String raw) {
+    if (raw == null) return null;
+    String candidate = raw.startsWith("placeholder:") ? raw.substring("placeholder:".length())
+        : raw.startsWith("protected:") ? raw.substring("protected:".length())
+        : raw;
+    return TOKEN.matcher(candidate).matches() ? candidate : null;
+  }
+
+  private String firstToken(String raw) {
+    Matcher matcher = TOKEN.matcher(raw == null ? "" : raw);
+    return matcher.find() ? matcher.group() : null;
+  }
+
+  private boolean isInlineContainer(Element element) {
+    if (!W.equals(element.getNamespaceURI())) return false;
+    return switch (element.getLocalName()) {
+      case "p", "hyperlink", "smartTag", "ins", "del", "moveTo", "moveFrom",
+          "sdtContent", "customXml", "fldSimple" -> true;
+      default -> false;
+    };
+  }
+
+  private Element tokenRun(Document doc, Element sdt, String token) {
+    NodeList runs = sdt.getElementsByTagNameNS(W, "r");
+    Element run = runs.getLength() > 0
+        ? (Element) runs.item(0).cloneNode(true)
+        : doc.createElementNS(W, "w:r");
+    Element text = null;
+    for (Node child = run.getFirstChild(); child != null; ) {
+      Node next = child.getNextSibling();
+      boolean keep = false;
+      if (child instanceof Element element && W.equals(element.getNamespaceURI())) {
+        keep = "rPr".equals(element.getLocalName());
+        if ("t".equals(element.getLocalName()) && text == null) {
+          text = element;
+          keep = true;
+        }
+      }
+      if (!keep) run.removeChild(child);
+      child = next;
+    }
+    if (text == null) {
+      text = doc.createElementNS(W, "w:t");
+      run.appendChild(text);
+    }
+    text.setTextContent(token);
+    text.setAttributeNS("http://www.w3.org/XML/1998/namespace", "xml:space", "preserve");
+    return run;
+  }
+
+  private Element firstChildElement(Element parent, String localName) {
+    for (Node child = parent.getFirstChild(); child != null; child = child.getNextSibling()) {
+      if (child instanceof Element element
+          && W.equals(element.getNamespaceURI())
+          && localName.equals(element.getLocalName())) {
+        return element;
+      }
+    }
+    return null;
   }
 
   private List<String> extractTokens(Path path) throws IOException {

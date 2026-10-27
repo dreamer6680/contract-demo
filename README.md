@@ -48,11 +48,11 @@ docker compose down
 
 React + TypeScript / Spring Boot 3.4 / Apache POI / LibreOffice headless / MySQL 8.4。
 
-## ONLYOFFICE 占位符锁定验证（开发分支）
+## ONLYOFFICE 模板原位编辑（dev 分支）
 
-`dev` 分支新增了可选的 ONLYOFFICE Docs 服务配置，默认 `docker compose up` 不会启动它。需要验证时，先设置 `ONLYOFFICE_JWT_SECRET`，再执行 `docker compose --profile onlyoffice up -d onlyoffice`。详细步骤、验收用例和未完成事项见 [`docs/onlyoffice-placeholder-poc.md`](docs/onlyoffice-placeholder-poc.md)。
+`dev` 分支新增了可选的 ONLYOFFICE Docs 服务，默认 `docker compose up` 不会启动它。需要模板编辑时，先设置 `ONLYOFFICE_JWT_SECRET`，再执行 `docker compose --profile onlyoffice up --build -d`。详细占位符保护说明见 [`docs/onlyoffice-placeholder-poc.md`](docs/onlyoffice-placeholder-poc.md)。
 
-### ONLYOFFICE 原生编辑器验证（dev 分支）
+### 模板编辑与字段值（dev 分支）
 
 在项目根目录执行：
 
@@ -61,4 +61,11 @@ export ONLYOFFICE_JWT_SECRET='请替换为强随机密钥'
 docker compose --profile onlyoffice up --build -d
 ```
 
-打开 http://localhost:5173，在左侧选择“ONLYOFFICE 编辑验证”。编辑器配置由 Java 后端签发 JWT；文档保存回调会写入 `storage/onlyoffice/`，重新打开时会读取保存副本。该页面目前只是基础编辑/保存链路验证，**尚未锁定业务占位符，也未完成保存后的占位符完整性校验**，不要用它修改正式模板。
+打开 http://localhost:5173，左侧选择“合同模板编辑”。编辑器直接打开当前 DOCX；正文中的 `{<$.key>}` 占位符会替换成后端 `/api/contract-fields` 返回的当前字段值，没有值的字段显示为空。
+
+点击“保存模板版本”时，后端会先从内容控件 tag 还原原始占位符，校验占位符集合，再把纯占位符 DOCX 保存为新的模板版本，因此不会把业务值写死进模板。注意：
+
+- `ONLYOFFICE_JWT_SECRET` 必须同时用于 `onlyoffice` 和 `backend`。如果之前单独启动过 onlyoffice，请用同一个值重新创建两个容器。
+- 编辑器内的自动保存只保存在编辑器会话中。点击“保存模板版本”会触发 ONLYOFFICE 强制保存回调，后端把业务值还原为占位符、写回 `storage/onlyoffice/{templateId}.docx`，再生成新的模板版本。
+- “生成 PDF 合同 / 更新 PDF 预览”使用“保存模板版本”生成的版本，编辑后请先点保存。
+- 占位符锁定与还原依赖 OOXML 内容控件；保存回调会拒绝缺失或改名的占位符。

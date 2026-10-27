@@ -43,6 +43,7 @@ services:
       ONLYOFFICE_DOCUMENT_SERVER_URL: http://localhost:8081
       ONLYOFFICE_DOCUMENT_URL_BASE: http://host.docker.internal:8080
       ONLYOFFICE_CALLBACK_URL_BASE: http://backend:8080
+      ONLYOFFICE_INTERNAL_URL: http://onlyoffice
     ports: ["8080:8080"]
     volumes:
       - ./storage:/app/storage

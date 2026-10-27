@@ -68,16 +68,25 @@
 .inlineInsertWrap{position:relative;display:flex;justify-content:center;height:0;z-index:3;overflow:visible}.inlineInsertButton{position:relative;top:-9px;display:flex;align-items:center;gap:5px;padding:3px 9px;border:1px dashed #a8b8d4;border-radius:14px;background:#fff;color:#536b98;font-size:10px;opacity:0;cursor:pointer;transition:opacity .15s}.simPdfPage:hover .inlineInsertButton,.inlineInsertButton:focus{opacity:1}.inlineInsertEditor{position:absolute;top:14px;left:50%;transform:translateX(-50%);width:min(420px,90%);padding:15px;background:#fff;border:1px solid #dbe3ef;border-radius:10px;box-shadow:0 10px 30px #24344c22;z-index:10;display:grid;gap:10px}.inlineInsertEditorTitle{font-size:12px;font-weight:700;color:#253651}.inlineInsertEditor label{display:grid;gap:5px;font-size:11px;color:#66758a}.inlineInsertEditor input,.inlineInsertEditor textarea{width:100%;border:1px solid #dbe2eb;border-radius:6px;padding:8px;font:inherit;font-size:12px;color:#202b3c;background:#fff}.inlineInsertActions{display:flex;justify-content:flex-end;gap:8px}.inlineInsertActions .primaryBtn,.inlineInsertActions .secondaryBtn{font-size:11px;padding:7px 10px}
 
 
-/* ONLYOFFICE development POC */
-.onlyOfficePocPage{height:100vh;min-height:640px;display:flex;flex-direction:column;background:#f4f6fa;color:#1e293b}
-.onlyOfficePocHeader{display:flex;align-items:center;gap:18px;padding:14px 22px;background:#fff;border-bottom:1px solid #dfe5ee;flex-shrink:0}
-.onlyOfficePocHeader>div{display:flex;flex-direction:column;gap:4px}
-.onlyOfficePocHeader b{font-size:15px}
-.onlyOfficePocHeader span{font-size:12px;color:#64748b}
-.onlyOfficePocNotice{display:flex;align-items:flex-start;gap:10px;margin:12px 18px;padding:12px 14px;border:1px solid #f2d39a;background:#fff9eb;border-radius:8px;color:#805b18;font-size:13px;line-height:1.6;flex-shrink:0}
-.onlyOfficePocNotice svg{flex-shrink:0;margin-top:2px}
-.onlyOfficePocError{display:flex;flex-direction:column;gap:8px;margin:0 18px 12px;padding:14px;border:1px solid #fecaca;border-radius:8px;background:#fff1f2;color:#991b1b;font-size:13px;flex-shrink:0}
-.onlyOfficePocError small{color:#7f1d1d}
-.onlyOfficePocError code{font-size:12px}
-.onlyOfficePocEditor{position:relative;flex:1;min-height:0;margin:0 18px 18px;border:1px solid #dfe5ee;border-radius:8px;overflow:hidden;background:#fff}
+/* ONLYOFFICE editor iframe */
 #onlyoffice-editor{position:absolute;inset:0;width:100%;height:100%}
+
+/* Embedded ONLYOFFICE template editor (main modification page) */
+.onlyOfficeEmbed{margin:16px 0 26px;border:1px solid #dce3ec;border-radius:11px;overflow:hidden;background:#e9edf3}
+.onlyOfficeEmbedBar{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:12px 16px;background:#f9fafc;border-bottom:1px solid #dce3ec}
+.onlyOfficeEmbedTitle{display:flex;align-items:center;gap:9px;color:#35445a;min-width:0}
+.onlyOfficeEmbedTitle b{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:420px}
+.onlyOfficeEmbedTitle span{font-size:9px;letter-spacing:.6px;color:#4267a7;background:#e8eef9;padding:3px 6px;border-radius:4px;flex-shrink:0}
+.onlyOfficeEmbedState{display:flex;align-items:center;gap:9px;min-width:0;color:#7c899b;font-size:11px}
+.onlyOfficeEmbedState>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:520px}
+.onlyOfficeEmbedState>span:first-child{flex-shrink:0;border-radius:9px;padding:3px 8px;font-size:10px}
+.stateReady{color:#2c7650;background:#e7f6ec}
+.stateDirty{color:#8a5a12;background:#fff4dd}
+.stateLoading{color:#4b607e;background:#edf1f7}
+.onlyOfficeValueNote{display:flex;align-items:flex-start;gap:8px;padding:10px 16px;background:#f2f7ff;border-bottom:1px solid #dce6f6;color:#526987;font-size:11px;line-height:1.6}
+.onlyOfficeValueNote svg{flex-shrink:0;margin-top:2px;color:#3d6aa8}
+.onlyOfficeValueNote code{font-size:11px;color:#315bb7;background:#e7eefc;border-radius:3px;padding:1px 4px}
+.onlyOfficeEmbedError{display:flex;flex-direction:column;gap:5px;margin:12px 16px;padding:12px 14px;border:1px solid #fecaca;border-radius:8px;background:#fff1f2;color:#991b1b;font-size:12px;line-height:1.6}
+.onlyOfficeEmbedError small{color:#7f1d1d}
+.onlyOfficeEmbedEditor{position:relative;height:72vh;min-height:620px;max-height:920px;background:#fff}
+@media(max-width:760px){.onlyOfficeEmbedTitle b{max-width:200px}.onlyOfficeEmbedState>span:last-child{max-width:100%;white-space:normal}.onlyOfficeEmbedEditor{height:70vh;min-height:520px;max-height:760px}}

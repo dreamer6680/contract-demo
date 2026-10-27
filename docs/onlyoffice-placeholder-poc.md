@@ -13,16 +13,18 @@ ONLYOFFICE 编辑器已嵌入主工作台的“合同模板编辑”页面。打
 
 ## 启动 Document Server
 
-在项目根目录执行：
+ONLYOFFICE Docs 已作为默认服务加入 compose，在项目根目录执行：
 
 ```bash
 export ONLYOFFICE_JWT_SECRET='replace-with-a-long-random-secret'
-docker compose --profile onlyoffice up -d onlyoffice
+docker compose up -d --build
 docker compose ps onlyoffice
 curl -fsS http://localhost:8081/healthcheck
 ```
 
 Document Server 地址：`http://localhost:8081`。JWT 密钥只用于本地开发，正式部署必须由后端签发/验证 JWT，并通过 HTTPS 和受控网络访问 Document Server；不要把密钥放进 React 前端。
+
+首次启动或重建 onlyoffice 容器后，内部 docservice 可能在大约 1 分钟内自重启一次；如果此时编辑器已打开，会显示一次断开连接。页面提供“重新连接”并会自动重试，不需要重启 Docker。
 
 ## 验证用例
 

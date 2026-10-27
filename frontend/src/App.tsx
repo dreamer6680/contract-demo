@@ -57,14 +57,25 @@ export default function App(){
   const emptyFieldCount = fields.filter(f=>!(data[f.key] ?? '').trim()).length
   const dataReady = Object.keys(data).length > 0
 
+  const alertUnsaved = () => {
+    window.alert('编辑器里还有未保存的模板修改。生成/预览会使用已保存的模板版本，请先点击“保存模板版本”。')
+  }
+
   const selectTemplate = (id:string) => {
+    if(editorDirty) {
+      window.alert('编辑器里还有未保存的模板修改，切换模板会丢失这些修改。请先点击“保存模板版本”。')
+      return
+    }
     setTemplateId(id)
     const found = templates.find(t=>t.id===id)
     if(found) setTemplateName(found.name + ' - 新版本')
   }
 
   const reloadEditor = async () => {
-    if(editorDirty && !window.confirm('重新载入会丢弃编辑器中尚未保存的修改，继续？')) return
+    if(editorDirty) {
+      window.alert('编辑器里还有未保存的模板修改，请先点击“保存模板版本”。')
+      return
+    }
     setNotice('正在重新载入编辑器与后端字段值…')
     setError(false)
     try {
@@ -81,6 +92,10 @@ export default function App(){
   }
 
   const updatePreview = async () => {
+    if(editorDirty) {
+      alertUnsaved()
+      return
+    }
     setPreviewBusy(true)
     setNotice('')
     try {
@@ -97,7 +112,10 @@ export default function App(){
   }
 
   const generate = async () => {
-    if(editorDirty && !window.confirm('编辑器还有未保存的模板修改，生成将使用已保存的模板版本。继续？')) return
+    if(editorDirty) {
+      alertUnsaved()
+      return
+    }
     setBusy(true)
     setNotice('')
     try {
@@ -164,7 +182,15 @@ export default function App(){
             <h2>选择合同模板</h2>
             <p>编辑器直接打开当前模板版本；生成和 PDF 预览也使用这个版本。</p>
             <div className="templateControls">
-              <select aria-label="选择模板" value={templateId} onChange={e=>selectTemplate(e.target.value)}>
+              <select aria-label="选择模板" value={templateId} onChange={e=>{
+                const next = e.target.value
+                if(editorDirty) {
+                  e.target.value = templateId
+                  window.alert('编辑器里还有未保存的模板修改，切换模板会丢失这些修改。请先点击“保存模板版本”。')
+                  return
+                }
+                selectTemplate(next)
+              }}>
                 {templates.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
               <input aria-label="模板版本名称" className="templateNameInput" value={templateName} onChange={e=>setTemplateName(e.target.value)} placeholder="输入保存的模板名称"/>
@@ -190,8 +216,6 @@ export default function App(){
         </div>
 
         <div className="clauseNotice"><ShieldCheck size={17}/><span><b>字段保护</b> · 共 {fields.length} 个字段，当前 {emptyFieldCount} 个无值；保存时所有字段都会还原为占位符，不会把业务值写进模板。</span></div>
-
-        {editorDirty && <div className="callout"><b>未保存修改</b><span>编辑器里还有未保存的模板修改；生成和预览使用已保存的模板版本，请先点击“保存模板版本”。</span></div>}
 
         {!loaded ? <p className="paragraphLoading">正在读取后端字段…</p> :
           !dataReady && fields.length>0 ? <p className="paragraphLoading">正在准备字段值…</p> :

@@ -50,7 +50,7 @@ React + TypeScript / Spring Boot 3.4 / Apache POI / LibreOffice headless / MySQL
 
 ## ONLYOFFICE 模板原位编辑（dev 分支）
 
-`dev` 分支新增了可选的 ONLYOFFICE Docs 服务，默认 `docker compose up` 不会启动它。需要模板编辑时，先设置 `ONLYOFFICE_JWT_SECRET`，再执行 `docker compose --profile onlyoffice up --build -d`。详细占位符保护说明见 [`docs/onlyoffice-placeholder-poc.md`](docs/onlyoffice-placeholder-poc.md)。
+ONLYOFFICE Docs 已作为默认服务加入 compose，`docker compose up` 会一并启动。详细占位符保护说明见 [`docs/onlyoffice-placeholder-poc.md`](docs/onlyoffice-placeholder-poc.md)。
 
 ### 模板编辑与字段值（dev 分支）
 
@@ -58,14 +58,15 @@ React + TypeScript / Spring Boot 3.4 / Apache POI / LibreOffice headless / MySQL
 
 ```bash
 export ONLYOFFICE_JWT_SECRET='请替换为强随机密钥'
-docker compose --profile onlyoffice up --build -d
+docker compose up -d --build
 ```
 
 打开 http://localhost:5173，左侧选择“合同模板编辑”。编辑器直接打开当前 DOCX；正文中的 `{<$.key>}` 占位符会替换成后端 `/api/contract-fields` 返回的当前字段值，没有值的字段显示为空。
 
 点击“保存模板版本”时，后端会先从内容控件 tag 还原原始占位符，校验占位符集合，再把纯占位符 DOCX 保存为新的模板版本，因此不会把业务值写死进模板。注意：
 
-- `ONLYOFFICE_JWT_SECRET` 必须同时用于 `onlyoffice` 和 `backend`。如果之前单独启动过 onlyoffice，请用同一个值重新创建两个容器。
+- `ONLYOFFICE_JWT_SECRET` 必须同时用于 `onlyoffice` 和 `backend`。只要通过同一个 compose 启动两者即可保持一致；如果手工单独启动过某个容器，请用同一个值重建两个容器。
+- Document Server 首次启动或重建容器后，内部 docservice 大约会在 1 分钟内完成一次自重启；如果编辑器刚好在这段时间打开，可能显示一次“断开连接”。点击编辑器右上角的“重新连接”即可，不需要重启 Docker；页面也会在捕获到错误时自动重连。重连会重新加载服务器上的模板版本，尚未保存为版本的编辑可能需要重做，建议及时点击“保存模板版本”。
 - 编辑器内的自动保存只保存在编辑器会话中。点击“保存模板版本”会触发 ONLYOFFICE 强制保存回调，后端把业务值还原为占位符、写回 `storage/onlyoffice/{templateId}.docx`，再生成新的模板版本。
 - “生成 PDF 合同 / 更新 PDF 预览”使用“保存模板版本”生成的版本，编辑后请先点保存。
 - 占位符锁定与还原依赖 OOXML 内容控件；保存回调会拒绝缺失或改名的占位符。

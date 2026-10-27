@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="shop.shmj.backend.mapper.mysql.PlatformContractTemplateVersionMapper">
+
+    <resultMap id="BaseResultMap" type="shop.shmj.backend.beans.entity.PlatformContractTemplateVersion">
+        <id column="id" jdbcType="VARCHAR" property="id"/>
+        <result column="template_id" jdbcType="VARCHAR" property="templateId"/>
+        <result column="version_no" jdbcType="INTEGER" property="versionNo"/>
+        <result column="file_key" jdbcType="VARCHAR" property="fileKey"/>
+        <result column="preview_pdf_key" jdbcType="VARCHAR" property="previewPdfKey"/>
+        <result column="file_sha256" jdbcType="VARCHAR" property="fileSha256"/>
+        <result column="placeholder_snapshot" jdbcType="LONGVARCHAR" property="placeholderSnapshot"/>
+        <result column="signing_anchor_json" jdbcType="LONGVARCHAR" property="signingAnchorJson"/>
+        <result column="change_summary" jdbcType="VARCHAR" property="changeSummary"/>
+        <result column="status" jdbcType="INTEGER" property="status"/>
+        <result column="create_user_id" jdbcType="VARCHAR" property="createUserId"/>
+        <result column="create_user_name" jdbcType="VARCHAR" property="createUserName"/>
+        <result column="create_time" jdbcType="TIMESTAMP" property="createTime"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, template_id, version_no, file_key, preview_pdf_key, file_sha256,
+        placeholder_snapshot, signing_anchor_json, change_summary, status,
+        create_user_id, create_user_name, create_time
+    </sql>
+
+    <insert id="insert" parameterType="shop.shmj.backend.beans.entity.PlatformContractTemplateVersion">
+        insert into platform_contract_template_version
+        (id, template_id, version_no, file_key, preview_pdf_key, file_sha256,
+         placeholder_snapshot, signing_anchor_json, change_summary, status,
+         create_user_id, create_user_name, create_time)
+        values (#{id,jdbcType=VARCHAR}, #{templateId,jdbcType=VARCHAR}, #{versionNo,jdbcType=INTEGER},
+                #{fileKey,jdbcType=VARCHAR}, #{previewPdfKey,jdbcType=VARCHAR}, #{fileSha256,jdbcType=VARCHAR},
+                #{placeholderSnapshot,jdbcType=LONGVARCHAR}, #{signingAnchorJson,jdbcType=LONGVARCHAR},
+                #{changeSummary,jdbcType=VARCHAR}, #{status,jdbcType=INTEGER},
+                #{createUserId,jdbcType=VARCHAR}, #{createUserName,jdbcType=VARCHAR}, #{createTime,jdbcType=TIMESTAMP})
+    </insert>
+
+    <select id="selectByTemplateIdAndVersion" resultMap="BaseResultMap">
+        select
+        <include refid="Base_Column_List"/>
+        from platform_contract_template_version
+        where template_id = #{templateId,jdbcType=VARCHAR}
+          and version_no = #{versionNo,jdbcType=INTEGER}
+    </select>
+
+    <select id="selectDraft" resultMap="BaseResultMap">
+        select
+        <include refid="Base_Column_List"/>
+        from platform_contract_template_version
+        where template_id = #{templateId,jdbcType=VARCHAR}
+          and status = 100
+        order by version_no desc
+        limit 1
+    </select>
+
+    <select id="selectPublished" resultMap="BaseResultMap">
+        select
+        <include refid="Base_Column_List"/>
+        from platform_contract_template_version
+        where template_id = #{templateId,jdbcType=VARCHAR}
+          and status = 200
+        order by version_no desc
+        limit 1
+    </select>
+
+    <select id="selectByTemplateId" resultMap="BaseResultMap">
+        select
+        <include refid="Base_Column_List"/>
+        from platform_contract_template_version
+        where template_id = #{templateId,jdbcType=VARCHAR}
+        order by version_no desc
+    </select>
+
+    <select id="selectMaxVersionNo" resultType="int">
+        select ifnull(max(version_no), 0)
+        from platform_contract_template_version
+        where template_id = #{templateId,jdbcType=VARCHAR}
+    </select>
+
+    <update id="updateStatus">
+        update platform_contract_template_version
+        set status = #{status,jdbcType=INTEGER}
+        where id = #{id,jdbcType=VARCHAR}
+    </update>
+
+    <update id="updateAnchors">
+        update platform_contract_template_version
+        set signing_anchor_json = #{signingAnchorJson,jdbcType=LONGVARCHAR}
+        where id = #{id,jdbcType=VARCHAR}
+    </update>
+
+    <update id="supersedeOtherPublished">
+        update platform_contract_template_version
+        set status = 300
+        where template_id = #{templateId,jdbcType=VARCHAR}
+          and status = 200
+          and version_no &lt;&gt; #{keepVersionNo,jdbcType=INTEGER}
+    </update>
+
+    <select id="countProductUsage" resultType="int">
+        select count(1)
+        from platform_product_version
+        where contract_template_id = #{templateId,jdbcType=VARCHAR}
+          and contract_template_version_no = #{versionNo,jdbcType=INTEGER}
+    </select>
+
+</mapper>

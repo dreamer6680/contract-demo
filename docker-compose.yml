@@ -2,7 +2,6 @@ services:
   onlyoffice:
     image: onlyoffice/documentserver:latest
     container_name: contract-demo-onlyoffice
-    profiles: ["onlyoffice"]
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports: ["8081:80"]

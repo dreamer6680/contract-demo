@@ -77,6 +77,47 @@ public class OnlyOfficeController {
     return buildConfig(templateId, readValues(body));
   }
 
+  /**
+   * Preflight used by the editor page. Besides checking that Document Server is
+   * reachable, it sends a signed CommandService request; error=6 means the
+   * Document Server rejected our JWT, i.e. the two services have different
+   * ONLYOFFICE_JWT_SECRET values.
+   */
+  @GetMapping("/ready")
+  public Map<String, Object> ready() {
+    try {
+      RestClient.create().get()
+          .uri(internalDocumentServerUrl + "/healthcheck")
+          .retrieve()
+          .toBodilessEntity();
+    } catch (Exception e) {
+      return Map.of("ready", false, "code", "UNAVAILABLE",
+          "message", "ONLYOFFICE Document Server 未启动或不可达");
+    }
+    Map<String, Object> command = Map.of("c", "info");
+    try {
+      String token = sign(command);
+      Object response = RestClient.create().post()
+          .uri(internalDocumentServerUrl + "/coauthoring/CommandService.ashx")
+          .header("Authorization", "Bearer " + token)
+          .contentType(MediaType.APPLICATION_JSON)
+          .body(command)
+          .retrieve()
+          .body(Object.class);
+      if (response instanceof Map<?, ?> map) {
+        Object error = map.get("error");
+        if (error instanceof Number n && n.intValue() == 6) {
+          return Map.of("ready", false, "code", "JWT_MISMATCH",
+              "message", "backend 与 ONLYOFFICE 的 JWT 密钥不一致，请用相同的 ONLYOFFICE_JWT_SECRET 重建两个容器");
+        }
+      }
+      return Map.of("ready", true);
+    } catch (Exception e) {
+      return Map.of("ready", false, "code", "COMMAND_FAILED",
+          "message", e.getMessage() == null ? "ONLYOFFICE 命令服务不可用" : e.getMessage());
+    }
+  }
+
   private Map<String, Object> buildConfig(String templateId, Map<String, String> values) throws IOException {
     Path canonical = ensureCanonical(templateId);
     String hash = valuesHash(values);

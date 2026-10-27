@@ -78,15 +78,17 @@
 .onlyOfficeEmbedTitle b{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:420px}
 .onlyOfficeEmbedTitle span{font-size:9px;letter-spacing:.6px;color:#4267a7;background:#e8eef9;padding:3px 6px;border-radius:4px;flex-shrink:0}
 .onlyOfficeEmbedState{display:flex;align-items:center;gap:9px;min-width:0;color:#7c899b;font-size:11px}
-.onlyOfficeEmbedState>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:520px}
+.onlyOfficeEmbedState>span+span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:520px}
 .onlyOfficeEmbedState>span:first-child{flex-shrink:0;border-radius:9px;padding:3px 8px;font-size:10px}
 .stateReady{color:#2c7650;background:#e7f6ec}
 .stateDirty{color:#8a5a12;background:#fff4dd}
 .stateLoading{color:#4b607e;background:#edf1f7}
+.onlyOfficeReconnect{display:flex;align-items:center;gap:4px;border:1px solid #d5dfec;background:#fff;color:#526987;border-radius:6px;padding:4px 7px;font:inherit;font-size:10px;cursor:pointer;flex-shrink:0}
+.onlyOfficeReconnect:hover{border-color:#9bb1db;color:#315bb7}
 .onlyOfficeValueNote{display:flex;align-items:flex-start;gap:8px;padding:10px 16px;background:#f2f7ff;border-bottom:1px solid #dce6f6;color:#526987;font-size:11px;line-height:1.6}
 .onlyOfficeValueNote svg{flex-shrink:0;margin-top:2px;color:#3d6aa8}
 .onlyOfficeValueNote code{font-size:11px;color:#315bb7;background:#e7eefc;border-radius:3px;padding:1px 4px}
 .onlyOfficeEmbedError{display:flex;flex-direction:column;gap:5px;margin:12px 16px;padding:12px 14px;border:1px solid #fecaca;border-radius:8px;background:#fff1f2;color:#991b1b;font-size:12px;line-height:1.6}
 .onlyOfficeEmbedError small{color:#7f1d1d}
 .onlyOfficeEmbedEditor{position:relative;height:72vh;min-height:620px;max-height:920px;background:#fff}
-@media(max-width:760px){.onlyOfficeEmbedTitle b{max-width:200px}.onlyOfficeEmbedState>span:last-child{max-width:100%;white-space:normal}.onlyOfficeEmbedEditor{height:70vh;min-height:520px;max-height:760px}}
+@media(max-width:760px){.onlyOfficeEmbedTitle b{max-width:200px}.onlyOfficeEmbedState>span+span{max-width:100%;white-space:normal}.onlyOfficeEmbedEditor{height:70vh;min-height:520px;max-height:760px}}

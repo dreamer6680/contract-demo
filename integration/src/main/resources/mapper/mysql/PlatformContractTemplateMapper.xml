@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="shop.shmj.backend.mapper.mysql.PlatformContractTemplateMapper">
+
+    <resultMap id="BaseResultMap" type="shop.shmj.backend.beans.entity.PlatformContractTemplate">
+        <id column="id" jdbcType="VARCHAR" property="id"/>
+        <result column="template_code" jdbcType="VARCHAR" property="templateCode"/>
+        <result column="template_name" jdbcType="VARCHAR" property="templateName"/>
+        <result column="owner_scope" jdbcType="INTEGER" property="ownerScope"/>
+        <result column="owner_enterprise_id" jdbcType="VARCHAR" property="ownerEnterpriseId"/>
+        <result column="status" jdbcType="INTEGER" property="status"/>
+        <result column="current_version_no" jdbcType="INTEGER" property="currentVersionNo"/>
+        <result column="published_version_no" jdbcType="INTEGER" property="publishedVersionNo"/>
+        <result column="sign_anchor_mode" jdbcType="INTEGER" property="signAnchorMode"/>
+        <result column="is_default" jdbcType="INTEGER" property="isDefault"/>
+        <result column="remark" jdbcType="VARCHAR" property="remark"/>
+        <result column="create_user_id" jdbcType="VARCHAR" property="createUserId"/>
+        <result column="create_user_name" jdbcType="VARCHAR" property="createUserName"/>
+        <result column="create_time" jdbcType="TIMESTAMP" property="createTime"/>
+        <result column="update_time" jdbcType="TIMESTAMP" property="updateTime"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, template_code, template_name, owner_scope, owner_enterprise_id, status,
+        current_version_no, published_version_no, sign_anchor_mode, is_default, remark,
+        create_user_id, create_user_name, create_time, update_time
+    </sql>
+
+    <insert id="insert" parameterType="shop.shmj.backend.beans.entity.PlatformContractTemplate">
+        insert into platform_contract_template
+        (id, template_code, template_name, owner_scope, owner_enterprise_id, status,
+         current_version_no, published_version_no, sign_anchor_mode, is_default, remark,
+         create_user_id, create_user_name, create_time, update_time)
+        values (#{id,jdbcType=VARCHAR}, #{templateCode,jdbcType=VARCHAR}, #{templateName,jdbcType=VARCHAR},
+                #{ownerScope,jdbcType=INTEGER}, #{ownerEnterpriseId,jdbcType=VARCHAR}, #{status,jdbcType=INTEGER},
+                #{currentVersionNo,jdbcType=INTEGER}, #{publishedVersionNo,jdbcType=INTEGER},
+                #{signAnchorMode,jdbcType=INTEGER}, #{isDefault,jdbcType=INTEGER}, #{remark,jdbcType=VARCHAR},
+                #{createUserId,jdbcType=VARCHAR}, #{createUserName,jdbcType=VARCHAR},
+                #{createTime,jdbcType=TIMESTAMP}, #{updateTime,jdbcType=TIMESTAMP})
+    </insert>
+
+    <select id="selectByPrimaryKey" parameterType="java.lang.String" resultMap="BaseResultMap">
+        select
+        <include refid="Base_Column_List"/>
+        from platform_contract_template
+        where id = #{id,jdbcType=VARCHAR}
+    </select>
+
+    <select id="selectByTemplateCode" resultMap="BaseResultMap">
+        select
+        <include refid="Base_Column_List"/>
+        from platform_contract_template
+        where template_code = #{templateCode,jdbcType=VARCHAR}
+        limit 1
+    </select>
+
+    <select id="selectDefaultPublished" resultMap="BaseResultMap">
+        select
+        <include refid="Base_Column_List"/>
+        from platform_contract_template
+        where is_default = 1
+          and status = 200
+          and published_version_no is not null
+        order by update_time desc
+        limit 1
+    </select>
+
+    <select id="selectTemplates" resultMap="BaseResultMap">
+        select
+        <include refid="Base_Column_List"/>
+        from platform_contract_template
+        <where>
+            <if test="keyword != null and keyword != ''">
+                AND (template_name like concat('%', #{keyword}, '%')
+                or template_code like concat('%', #{keyword}, '%'))
+            </if>
+            <if test="status != null">
+                AND status = #{status}
+            </if>
+            <if test="ownerScope != null">
+                AND owner_scope = #{ownerScope}
+            </if>
+            <if test="enterpriseId != null and enterpriseId != ''">
+                AND (owner_scope = 1 or owner_enterprise_id = #{enterpriseId})
+            </if>
+        </where>
+        order by is_default desc, update_time desc, create_time desc
+    </select>
+
+    <select id="selectSelectableTemplates" resultMap="BaseResultMap">
+        select
+        <include refid="Base_Column_List"/>
+        from platform_contract_template
+        where status = 200
+          and published_version_no is not null
+          and (owner_scope = 1 or owner_enterprise_id = #{enterpriseId,jdbcType=VARCHAR})
+        order by is_default desc, update_time desc
+    </select>
+
+    <update id="updateByPrimaryKeySelective"
+            parameterType="shop.shmj.backend.beans.entity.PlatformContractTemplate">
+        update platform_contract_template
+        <set>
+            <if test="templateCode != null">template_code = #{templateCode,jdbcType=VARCHAR},</if>
+            <if test="templateName != null">template_name = #{templateName,jdbcType=VARCHAR},</if>
+            <if test="ownerScope != null">owner_scope = #{ownerScope,jdbcType=INTEGER},</if>
+            <if test="ownerEnterpriseId != null">owner_enterprise_id = #{ownerEnterpriseId,jdbcType=VARCHAR},</if>
+            <if test="status != null">status = #{status,jdbcType=INTEGER},</if>
+            <if test="currentVersionNo != null">current_version_no = #{currentVersionNo,jdbcType=INTEGER},</if>
+            <if test="publishedVersionNo != null">published_version_no = #{publishedVersionNo,jdbcType=INTEGER},</if>
+            <if test="signAnchorMode != null">sign_anchor_mode = #{signAnchorMode,jdbcType=INTEGER},</if>
+            <if test="isDefault != null">is_default = #{isDefault,jdbcType=INTEGER},</if>
+            <if test="remark != null">remark = #{remark,jdbcType=VARCHAR},</if>
+            <if test="updateTime != null">update_time = #{updateTime,jdbcType=TIMESTAMP},</if>
+        </set>
+        where id = #{id,jdbcType=VARCHAR}
+    </update>
+
+    <update id="clearDefaultFlag">
+        update platform_contract_template
+        set is_default = 0,
+            update_time = now()
+        where is_default = 1
+    </update>
+
+    <update id="updateEditVersion">
+        update platform_contract_template
+        set current_version_no = #{currentVersionNo,jdbcType=INTEGER},
+            update_time        = #{updateTime,jdbcType=TIMESTAMP}
+        where id = #{id,jdbcType=VARCHAR}
+    </update>
+
+    <update id="updatePublished">
+        update platform_contract_template
+        set published_version_no = #{publishedVersionNo,jdbcType=INTEGER},
+            status               = #{status,jdbcType=INTEGER},
+            sign_anchor_mode     = #{signAnchorMode,jdbcType=INTEGER},
+            update_time          = #{updateTime,jdbcType=TIMESTAMP}
+        where id = #{id,jdbcType=VARCHAR}
+    </update>
+
+    <update id="updateStatus">
+        update platform_contract_template
+        set status      = #{status,jdbcType=INTEGER},
+            update_time = #{updateTime,jdbcType=TIMESTAMP}
+        where id = #{id,jdbcType=VARCHAR}
+    </update>
+
+</mapper>
